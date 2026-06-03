@@ -1,0 +1,347 @@
+import React, { useState, useEffect } from 'react';
+import { useApp } from '../App';
+import { api } from '../utils/api';
+import { Palette, Layers, Calendar, ShoppingBag, FileText } from 'lucide-react';
+
+export default function FineArts() {
+  const { siteContent, user, setShowAuthModal, setAuthModalTab, showToast } = useApp();
+  const [gallery, setGallery] = useState([]);
+  const [classes, setClasses] = useState([]);
+  
+  // Commission Form State
+  const [medium, setMedium] = useState('Oil on Canvas');
+  const [size, setSize] = useState('16x20 inches');
+  const [description, setDescription] = useState('');
+  const [targetDate, setTargetDate] = useState('');
+  const [submittingCommission, setSubmittingCommission] = useState(false);
+
+  const fetchArtData = async () => {
+    try {
+      const art = await api.gallery.get();
+      setGallery(art);
+      
+      const allClasses = await api.classes.get();
+      // Filter only fine arts classes
+      setClasses(allClasses.filter(c => c.category === 'fine-arts'));
+    } catch (err) {
+      console.error("Failed to load fine arts details:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchArtData();
+  }, []);
+
+  const handleBookClass = async (classId, classTitle) => {
+    if (!user) {
+      setAuthModalTab('login');
+      setShowAuthModal(true);
+      showToast("Please register or login to book classes.", "error");
+      return;
+    }
+
+    try {
+      await api.bookings.create(classId);
+      showToast(`Successfully registered for ${classTitle}! Check your dashboard.`);
+    } catch (err) {
+      showToast(err.message || "Failed to book class.", "error");
+    }
+  };
+
+  const handleCommissionSubmit = async (e) => {
+    e.preventDefault();
+    if (!user) {
+      setAuthModalTab('login');
+      setShowAuthModal(true);
+      showToast("Please login to submit portrait commission requests.", "error");
+      return;
+    }
+
+    setSubmittingCommission(true);
+    try {
+      await api.commissions.create({ medium, size, description, targetDate });
+      showToast("Commission request submitted! Reviewing details shortly.");
+      setDescription('');
+      setTargetDate('');
+    } catch (err) {
+      showToast(err.message || "Request failed.", "error");
+    } finally {
+      setSubmittingCommission(false);
+    }
+  };
+
+  const pageTexts = siteContent?.fineArts || {
+    title: "Fine Arts Studio",
+    description: "Unleash your creativity and master visual expression. From classical commissions to contemporary classes, explore art in its purest forms.",
+    classesIntro: "We offer professional, structured fine arts classes across a wide range of mediums including Pencil & Pen sketching, Oil paints, Acrylics, Watercolors, and Oil Pastels."
+  };
+
+  return (
+    <div className="animate-fade-in" style={{ padding: '40px 0 80px 0' }}>
+      
+      {/* 1. HEADER */}
+      <section style={{ marginBottom: '60px', textAlign: 'center' }}>
+        <div className="container">
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '6px 12px',
+            borderRadius: '20px',
+            background: 'rgba(212,175,55,0.08)',
+            border: '1px solid rgba(212,175,55,0.2)',
+            marginBottom: '16px'
+          }}>
+            <Palette size={14} color="#d4af37" />
+            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#d4af37', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Creativity & expression</span>
+          </div>
+          <h1 style={{ fontSize: '3rem', fontFamily: 'var(--font-heading)', marginBottom: '16px' }}>{pageTexts.title}</h1>
+          <p style={{ color: 'var(--text-secondary)', maxWidth: '700px', margin: '0 auto', fontSize: '1.05rem' }}>
+            {pageTexts.description}
+          </p>
+        </div>
+      </section>
+
+      {/* 2. GALLERY GRID */}
+      <section style={{ marginBottom: '80px' }}>
+        <div className="container">
+          <h2 style={{ fontSize: '1.8rem', fontFamily: 'var(--font-heading)', marginBottom: '30px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
+            🎨 Contemporary Art Gallery
+          </h2>
+          
+          <div className="grid-3">
+            {gallery.map(art => (
+              <div 
+                key={art.id} 
+                className="glass-card glow-art"
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  height: '100%',
+                  padding: '16px'
+                }}
+              >
+                {/* Image Wrap */}
+                <div style={{
+                  position: 'relative',
+                  width: '100%',
+                  height: '240px',
+                  borderRadius: '14px',
+                  overflow: 'hidden',
+                  marginBottom: '16px',
+                  backgroundColor: 'rgba(0,0,0,0.2)'
+                }}>
+                  <img 
+                    src={art.imageUrl.startsWith('/uploads') ? art.imageUrl : art.imageUrl} 
+                    alt={art.title}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover'
+                    }}
+                  />
+                  {art.isSold && (
+                    <div style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      height: '100%',
+                      background: 'rgba(0,0,0,0.65)',
+                      backdropFilter: 'blur(2px)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#d4af37',
+                      fontFamily: 'var(--font-heading)',
+                      fontWeight: 800,
+                      fontSize: '1.4rem',
+                      letterSpacing: '0.1em'
+                    }}>
+                      SOLD
+                    </div>
+                  )}
+                </div>
+
+                {/* Details */}
+                <h3 style={{ fontSize: '1.2rem', fontFamily: 'var(--font-heading)', color: '#fff', marginBottom: '6px' }}>{art.title}</h3>
+                <span className="badge badge-art" style={{ width: 'fit-content', marginBottom: '12px' }}>{art.medium}</span>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', flexGrow: 1, marginBottom: '16px' }}>{art.description}</p>
+                
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginTop: 'auto',
+                  borderTop: '1px solid var(--border-color)',
+                  paddingTop: '12px'
+                }}>
+                  <span style={{ fontFamily: 'var(--font-heading)', fontSize: '1.25rem', fontWeight: 700, color: '#fff' }}>
+                    Ksh {art.price.toLocaleString()}
+                  </span>
+                  {!art.isSold ? (
+                    <button 
+                      onClick={() => showToast(`Simulated acquiring: "${art.title}"! We have received your purchase intent.`)}
+                      className="btn btn-gold" 
+                      style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+                    >
+                      <ShoppingBag size={14} /> Buy Piece
+                    </button>
+                  ) : (
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Private Collection</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* 3. CLASSES */}
+      <section style={{ marginBottom: '80px', backgroundColor: 'rgba(255,255,255,0.01)', padding: '60px 0', borderTop: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)' }}>
+        <div className="container">
+          <h2 style={{ fontSize: '1.8rem', fontFamily: 'var(--font-heading)', marginBottom: '12px' }}>
+            📚 Fine Arts Classes
+          </h2>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: '30px', maxWidth: '700px' }}>
+            {pageTexts.classesIntro}
+          </p>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {classes.map(c => (
+              <div 
+                key={c.id} 
+                className="glass-card" 
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: '20px',
+                  flexWrap: 'wrap'
+                }}
+              >
+                <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                  <div style={{
+                    width: '44px',
+                    height: '44px',
+                    borderRadius: '10px',
+                    backgroundColor: 'rgba(212,175,55,0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <Palette size={20} color="#d4af37" />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '1.15rem', color: '#fff' }}>{c.title}</h3>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{c.description}</p>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '30px', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                    <Calendar size={16} />
+                    <span>{c.schedule}</span>
+                  </div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#fff' }}>
+                    Ksh {c.price.toLocaleString()} <span style={{ fontSize: '0.8rem', fontWeight: 400, color: 'var(--text-muted)' }}>/ class</span>
+                  </div>
+                  <button 
+                    onClick={() => handleBookClass(c.id, c.title)}
+                    className="btn btn-gold"
+                    style={{ padding: '8px 16px', fontSize: '0.9rem' }}
+                  >
+                    Book Spot
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* 4. PORTRAIT COMMISSIONS */}
+      <section>
+        <div className="container" style={{ maxWidth: '800px' }}>
+          <div className="glass-card glow-art" style={{ padding: '40px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+              <Layers size={24} color="#d4af37" />
+              <h2 style={{ fontSize: '1.8rem', fontFamily: 'var(--font-heading)', margin: 0 }}>Commission Custom Portraits</h2>
+            </div>
+            
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '30px', fontSize: '0.95rem' }}>
+              Have an idea, photo, or memory you'd like brought to life in an elegant, contemporary aesthetic? Select a medium and details below to submit a review request to our studio curators.
+            </p>
+
+            <form onSubmit={handleCommissionSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }} className="grid-2">
+                <div className="form-group">
+                  <label className="form-label">Desired Art Medium</label>
+                  <select 
+                    className="form-control focus-art"
+                    value={medium}
+                    onChange={(e) => setMedium(e.target.value)}
+                    style={{ appearance: 'none', background: 'rgba(255,255,255,0.05)', color: '#fff' }}
+                  >
+                    <option value="Oil on Canvas">Oil on Canvas</option>
+                    <option value="Acrylic on Canvas">Acrylic on Canvas</option>
+                    <option value="Pencil / Pen Sketch">Pencil / Pen Sketch</option>
+                    <option value="Watercolor Portrait">Watercolor Portrait</option>
+                    <option value="Oil Pastels Visual">Oil Pastels Visual</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Dimensions / Size</label>
+                  <select 
+                    className="form-control focus-art"
+                    value={size}
+                    onChange={(e) => setSize(e.target.value)}
+                  >
+                    <option value="8x10 inches">8x10 inches (Small Desk Portrait)</option>
+                    <option value="12x16 inches">12x16 inches (Medium Frame)</option>
+                    <option value="16x20 inches">16x20 inches (Standard Portrait Size)</option>
+                    <option value="24x36 inches">24x36 inches (Large Living Room Canvas)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Description & Artistic Focus</label>
+                <textarea 
+                  className="form-control focus-art"
+                  rows={4}
+                  placeholder="Describe your context, focus subject (family portrait, pet representation, landscape backdrop), specific color themes, and reference requirements..."
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-group" style={{ maxWidth: '300px' }}>
+                <label className="form-label">Target Completion Date (Optional)</label>
+                <input 
+                  type="date" 
+                  className="form-control focus-art"
+                  value={targetDate}
+                  onChange={(e) => setTargetDate(e.target.value)}
+                  style={{ color: '#fff' }}
+                />
+              </div>
+
+              <button 
+                type="submit" 
+                className="btn btn-gold"
+                disabled={submittingCommission}
+                style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: '8px' }}
+              >
+                <FileText size={16} /> {submittingCommission ? 'Submitting Form...' : 'Submit Commission Request'}
+              </button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  );
+}
