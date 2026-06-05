@@ -9,8 +9,8 @@ const multer = require('multer');
 const db = require('./database/db');
 const { authenticateToken, requireAdmin, JWT_SECRET } = require('./middleware/auth');
 
-// Import Cloudinary configuration
-const { cloudinary, upload } = require('./config/cloudinary');
+// Import Cloudinary configuration (working version)
+const { cloudinary, upload, uploadToCloudinary } = require('./config/cloudinary');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -53,7 +53,7 @@ app.post('/api/auth/register', (req, res) => {
     name,
     email: email.toLowerCase(),
     password: hashedPassword,
-    role: 'member', // Default role is member
+    role: 'member',
     createdAt: new Date().toISOString()
   };
 
@@ -155,40 +155,46 @@ app.put('/api/content', requireAdmin, (req, res) => {
   res.json({ message: 'Website content updated successfully!', siteContent: data.siteContent });
 });
 
-// Add new painting/portrait to gallery (UPDATED for Cloudinary)
-app.post('/api/gallery', requireAdmin, upload.single('image'), (req, res) => {
+// Add new painting/portrait to gallery (UPDATED for Cloudinary with memory storage)
+app.post('/api/gallery', requireAdmin, upload.single('image'), async (req, res) => {
   const { title, description, medium, price } = req.body;
   if (!title || !description || !medium || !price) {
     return res.status(400).json({ error: 'All description fields are required' });
   }
 
-  let imageUrl = req.body.imageUrl || '';
-  
-  // If a file was uploaded, Cloudinary provides the URL in req.file.path
-  if (req.file) {
-    imageUrl = req.file.path;
+  try {
+    let imageUrl = req.body.imageUrl || '';
+    
+    // If a file was uploaded, upload to Cloudinary
+    if (req.file) {
+      const result = await uploadToCloudinary(req.file.buffer);
+      imageUrl = result.secure_url;
+    }
+
+    const data = db.read();
+    const newArt = {
+      id: 'art-' + Date.now(),
+      title,
+      description,
+      medium,
+      imageUrl: imageUrl || 'https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?q=80&w=800',
+      price: parseFloat(price),
+      isSold: false,
+      createdAt: new Date().toISOString()
+    };
+
+    data.gallery.unshift(newArt);
+    db.write(data);
+
+    res.status(201).json({ message: 'Art piece added successfully!', art: newArt });
+  } catch (error) {
+    console.error('Upload error:', error);
+    res.status(500).json({ error: 'Failed to upload image: ' + error.message });
   }
-
-  const data = db.read();
-  const newArt = {
-    id: 'art-' + Date.now(),
-    title,
-    description,
-    medium,
-    imageUrl: imageUrl || 'https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?q=80&w=800',
-    price: parseFloat(price),
-    isSold: false,
-    createdAt: new Date().toISOString()
-  };
-
-  data.gallery.unshift(newArt);
-  db.write(data);
-
-  res.status(201).json({ message: 'Art piece added successfully!', art: newArt });
 });
 
-// Edit gallery piece details (UPDATED for Cloudinary)
-app.put('/api/gallery/:id', requireAdmin, upload.single('image'), (req, res) => {
+// Edit gallery piece details (UPDATED for Cloudinary with memory storage)
+app.put('/api/gallery/:id', requireAdmin, upload.single('image'), async (req, res) => {
   const { id } = req.params;
   const { title, description, medium, price, isSold } = req.body;
 
@@ -199,27 +205,33 @@ app.put('/api/gallery/:id', requireAdmin, upload.single('image'), (req, res) => 
     return res.status(404).json({ error: 'Art piece not found' });
   }
 
-  let imageUrl = data.gallery[artIndex].imageUrl;
-  
-  // If a new file was uploaded, use the Cloudinary URL
-  if (req.file) {
-    imageUrl = req.file.path;
-  } else if (req.body.imageUrl) {
-    imageUrl = req.body.imageUrl;
+  try {
+    let imageUrl = data.gallery[artIndex].imageUrl;
+    
+    // If a new file was uploaded, upload to Cloudinary
+    if (req.file) {
+      const result = await uploadToCloudinary(req.file.buffer);
+      imageUrl = result.secure_url;
+    } else if (req.body.imageUrl) {
+      imageUrl = req.body.imageUrl;
+    }
+
+    data.gallery[artIndex] = {
+      ...data.gallery[artIndex],
+      title: title || data.gallery[artIndex].title,
+      description: description || data.gallery[artIndex].description,
+      medium: medium || data.gallery[artIndex].medium,
+      price: price ? parseFloat(price) : data.gallery[artIndex].price,
+      isSold: isSold === 'true' || isSold === true,
+      imageUrl
+    };
+
+    db.write(data);
+    res.json({ message: 'Art piece updated successfully!', art: data.gallery[artIndex] });
+  } catch (error) {
+    console.error('Upload error:', error);
+    res.status(500).json({ error: 'Failed to upload image: ' + error.message });
   }
-
-  data.gallery[artIndex] = {
-    ...data.gallery[artIndex],
-    title: title || data.gallery[artIndex].title,
-    description: description || data.gallery[artIndex].description,
-    medium: medium || data.gallery[artIndex].medium,
-    price: price ? parseFloat(price) : data.gallery[artIndex].price,
-    isSold: isSold === 'true' || isSold === true,
-    imageUrl
-  };
-
-  db.write(data);
-  res.json({ message: 'Art piece updated successfully!', art: data.gallery[artIndex] });
 });
 
 // Delete gallery piece (UPDATED to also delete from Cloudinary)
@@ -232,7 +244,6 @@ app.delete('/api/gallery/:id', requireAdmin, async (req, res) => {
   if (artToDelete && artToDelete.imageUrl && artToDelete.imageUrl.includes('cloudinary.com')) {
     try {
       // Extract the public ID from the Cloudinary URL
-      // URL format: https://res.cloudinary.com/cloud_name/image/upload/v1234567890/tcm-arts/filename.jpg
       const urlParts = artToDelete.imageUrl.split('/');
       const filenameWithExt = urlParts[urlParts.length - 1];
       const filename = filenameWithExt.split('.')[0];
