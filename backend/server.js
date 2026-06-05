@@ -9,6 +9,9 @@ const multer = require('multer');
 const db = require('./database/db');
 const { authenticateToken, requireAdmin, JWT_SECRET } = require('./middleware/auth');
 
+// Import Cloudinary configuration
+const { cloudinary, upload } = require('./config/cloudinary');
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -16,35 +19,13 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// Setup static uploads directory
+// Setup static uploads directory for OLD images (kept for backward compatibility)
+// Any existing images in this folder will still be served, but new uploads go to Cloudinary
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 app.use('/uploads', express.static(uploadsDir));
-
-// Setup Multer for secure image uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadsDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
-});
-const upload = multer({ 
-  storage: storage,
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|gif|webp/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-    if (extname && mimetype) {
-      return cb(null, true);
-    }
-    cb(new Error('Only images (jpg, png, gif, webp) are allowed!'));
-  }
-});
 
 // ==========================================
 // 1. AUTHENTICATION ENDPOINTS
@@ -174,7 +155,7 @@ app.put('/api/content', requireAdmin, (req, res) => {
   res.json({ message: 'Website content updated successfully!', siteContent: data.siteContent });
 });
 
-// Add new painting/portrait to gallery (Supports optional file upload or text URL)
+// Add new painting/portrait to gallery (UPDATED for Cloudinary)
 app.post('/api/gallery', requireAdmin, upload.single('image'), (req, res) => {
   const { title, description, medium, price } = req.body;
   if (!title || !description || !medium || !price) {
@@ -182,8 +163,10 @@ app.post('/api/gallery', requireAdmin, upload.single('image'), (req, res) => {
   }
 
   let imageUrl = req.body.imageUrl || '';
+  
+  // If a file was uploaded, Cloudinary provides the URL in req.file.path
   if (req.file) {
-    imageUrl = `/uploads/${req.file.filename}`;
+    imageUrl = req.file.path;
   }
 
   const data = db.read();
@@ -198,13 +181,13 @@ app.post('/api/gallery', requireAdmin, upload.single('image'), (req, res) => {
     createdAt: new Date().toISOString()
   };
 
-  data.gallery.unshift(newArt); // Put newer art first
+  data.gallery.unshift(newArt);
   db.write(data);
 
   res.status(201).json({ message: 'Art piece added successfully!', art: newArt });
 });
 
-// Edit gallery piece details
+// Edit gallery piece details (UPDATED for Cloudinary)
 app.put('/api/gallery/:id', requireAdmin, upload.single('image'), (req, res) => {
   const { id } = req.params;
   const { title, description, medium, price, isSold } = req.body;
@@ -217,8 +200,10 @@ app.put('/api/gallery/:id', requireAdmin, upload.single('image'), (req, res) => 
   }
 
   let imageUrl = data.gallery[artIndex].imageUrl;
+  
+  // If a new file was uploaded, use the Cloudinary URL
   if (req.file) {
-    imageUrl = `/uploads/${req.file.filename}`;
+    imageUrl = req.file.path;
   } else if (req.body.imageUrl) {
     imageUrl = req.body.imageUrl;
   }
@@ -237,10 +222,29 @@ app.put('/api/gallery/:id', requireAdmin, upload.single('image'), (req, res) => 
   res.json({ message: 'Art piece updated successfully!', art: data.gallery[artIndex] });
 });
 
-// Delete gallery piece
-app.delete('/api/gallery/:id', requireAdmin, (req, res) => {
+// Delete gallery piece (UPDATED to also delete from Cloudinary)
+app.delete('/api/gallery/:id', requireAdmin, async (req, res) => {
   const { id } = req.params;
   const data = db.read();
+  const artToDelete = data.gallery.find(art => art.id === id);
+  
+  // If the image is stored in Cloudinary, delete it from Cloudinary as well
+  if (artToDelete && artToDelete.imageUrl && artToDelete.imageUrl.includes('cloudinary.com')) {
+    try {
+      // Extract the public ID from the Cloudinary URL
+      // URL format: https://res.cloudinary.com/cloud_name/image/upload/v1234567890/tcm-arts/filename.jpg
+      const urlParts = artToDelete.imageUrl.split('/');
+      const filenameWithExt = urlParts[urlParts.length - 1];
+      const filename = filenameWithExt.split('.')[0];
+      const publicId = `tcm-arts/${filename}`;
+      
+      await cloudinary.uploader.destroy(publicId);
+      console.log(`Deleted image from Cloudinary: ${publicId}`);
+    } catch (error) {
+      console.error('Failed to delete from Cloudinary:', error);
+    }
+  }
+  
   const filteredGallery = data.gallery.filter(art => art.id !== id);
 
   if (filteredGallery.length === data.gallery.length) {
@@ -439,5 +443,6 @@ app.listen(PORT, () => {
   console.log(`🚀 TCM Arts Server running on port ${PORT}`);
   console.log(`👤 Admin: tevinmuthengia@gmail.com (pwd: Muthengia2040#)`);
   console.log(`👤 Owner: thecommonmass@gmail.com (pwd: Tesh@2026)`);
+  console.log(`📸 Images stored in Cloudinary (persistent!)`);
   console.log(`============================================`);
 });
