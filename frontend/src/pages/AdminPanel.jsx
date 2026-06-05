@@ -3,52 +3,6 @@ import { useApp } from '../App';
 import { api } from '../utils/api';
 import { Edit, Image, Plus, Trash2, Calendar, FileText, CheckCircle2, Shield, User } from 'lucide-react';
 
-// ==========================================
-// IMAGE COMPRESSION HELPER FUNCTION
-// ==========================================
-const compressImage = (file) => {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = (event) => {
-      const img = new Image();
-      img.src = event.target.result;
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
-        const MAX_WIDTH = 1200;
-        const MAX_HEIGHT = 1200;
-        
-        if (width > height) {
-          if (width > MAX_WIDTH) {
-            height = Math.round((height * MAX_WIDTH) / width);
-            width = MAX_WIDTH;
-          }
-        } else {
-          if (height > MAX_HEIGHT) {
-            width = Math.round((width * MAX_HEIGHT) / height);
-            height = MAX_HEIGHT;
-          }
-        }
-        
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-        
-        canvas.toBlob((blob) => {
-          const compressedFile = new File([blob], file.name, { 
-            type: 'image/jpeg',
-            lastModified: Date.now()
-          });
-          resolve(compressedFile);
-        }, 'image/jpeg', 0.85);
-      };
-    };
-  });
-};
-
 export default function AdminPanel() {
   const { siteContent, reloadContent, showToast } = useApp();
   const [activeTab, setActiveTab] = useState('text'); // 'text' | 'gallery' | 'classes' | 'commissions' | 'users'
@@ -166,7 +120,7 @@ export default function AdminPanel() {
     }
   };
 
-  // Add a gallery painting/portrait (UPDATED with image compression)
+  // Add a gallery painting/portrait (SIMPLIFIED - no compression)
   const handleAddArt = async (e) => {
     e.preventDefault();
     if (!newArtTitle || !newArtDesc || !newArtPrice) {
@@ -181,16 +135,8 @@ export default function AdminPanel() {
       formData.append('medium', newArtMedium);
       formData.append('price', newArtPrice);
       
-      // Handle file upload with compression
       if (newArtFile) {
-        let fileToUpload = newArtFile;
-        // Compress if larger than 500KB
-        if (fileToUpload.size > 500 * 1024) {
-          console.log(`Compressing image: ${(fileToUpload.size / 1024).toFixed(2)} KB`);
-          fileToUpload = await compressImage(fileToUpload);
-          console.log(`Compressed to: ${(fileToUpload.size / 1024).toFixed(2)} KB`);
-        }
-        formData.append('image', fileToUpload);
+        formData.append('image', newArtFile);
       } else if (newArtUrl) {
         formData.append('imageUrl', newArtUrl || 'https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5');
       }
@@ -1076,7 +1022,7 @@ export default function AdminPanel() {
                     <th style={{ padding: '12px 16px' }}>Email</th>
                     <th style={{ padding: '12px 16px' }}>Access Role</th>
                     <th style={{ padding: '12px 16px' }}>Registered At</th>
-                  <tr>
+                  </table>
                 </thead>
                 <tbody>
                   {users.map(u => (
