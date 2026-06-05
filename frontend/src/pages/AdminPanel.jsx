@@ -120,7 +120,7 @@ export default function AdminPanel() {
     }
   };
 
-  // Add a gallery painting/portrait (SIMPLIFIED - no compression)
+  // Add a gallery painting/portrait
   const handleAddArt = async (e) => {
     e.preventDefault();
     if (!newArtTitle || !newArtDesc || !newArtPrice) {
@@ -1006,7 +1006,7 @@ export default function AdminPanel() {
         )}
 
         {/* =========================================================
-           TAB 5: USERS ROSTER
+           TAB 5: USERS ROSTER - FIXED HTML TABLE
            ========================================================= */}
         {activeTab === 'users' && (
           <div className="glass-card" style={{ padding: '30px' }}>
@@ -1022,7 +1022,7 @@ export default function AdminPanel() {
                     <th style={{ padding: '12px 16px' }}>Email</th>
                     <th style={{ padding: '12px 16px' }}>Access Role</th>
                     <th style={{ padding: '12px 16px' }}>Registered At</th>
-                  </table>
+                  </tr>
                 </thead>
                 <tbody>
                   {users.map(u => (
