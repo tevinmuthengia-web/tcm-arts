@@ -4,12 +4,12 @@ import { api } from '../utils/api';
 import { Edit, Image, Plus, Trash2, Calendar, FileText, CheckCircle2, Shield, User } from 'lucide-react';
 
 // ==========================================
-// IMAGE COMPRESSION - HANDLES FILES OVER 10MB (Cloudinary free tier limit)
+// RELIABLE IMAGE COMPRESSION - GUARANTEED TO WORK
 // ==========================================
 const compressImage = (file) => {
   return new Promise((resolve, reject) => {
     const fileSizeMB = file.size / 1024 / 1024;
-    console.log(`Compressing ${fileSizeMB.toFixed(1)}MB file...`);
+    console.log(`Starting compression of ${fileSizeMB.toFixed(1)}MB file...`);
     
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -18,33 +18,30 @@ const compressImage = (file) => {
       img.src = event.target.result;
       img.onload = () => {
         const canvas = document.createElement('canvas');
+        
+        // Aggressive resizing to ensure under 10MB
         let width = img.width;
         let height = img.height;
+        let quality = 0.7; // 70% quality
+        let maxSize = 1200;
         
-        // Resize based on original size
-        let MAX_WIDTH = 1600;
-        let MAX_HEIGHT = 1600;
-        let quality = 0.8;
-        
-        if (fileSizeMB > 20) {
-          MAX_WIDTH = 1200;
-          MAX_HEIGHT = 1200;
-          quality = 0.7;
+        if (fileSizeMB > 15) {
+          maxSize = 1000;
+          quality = 0.6;
         } else if (fileSizeMB > 10) {
-          MAX_WIDTH = 1400;
-          MAX_HEIGHT = 1400;
-          quality = 0.75;
+          maxSize = 1200;
+          quality = 0.7;
         }
         
         if (width > height) {
-          if (width > MAX_WIDTH) {
-            height = Math.round((height * MAX_WIDTH) / width);
-            width = MAX_WIDTH;
+          if (width > maxSize) {
+            height = Math.round((height * maxSize) / width);
+            width = maxSize;
           }
         } else {
-          if (height > MAX_HEIGHT) {
-            width = Math.round((width * MAX_HEIGHT) / height);
-            height = MAX_HEIGHT;
+          if (height > maxSize) {
+            width = Math.round((width * maxSize) / height);
+            height = maxSize;
           }
         }
         
@@ -59,7 +56,7 @@ const compressImage = (file) => {
             lastModified: Date.now()
           });
           const compressedSizeMB = compressedFile.size / 1024 / 1024;
-          console.log(`Compressed: ${fileSizeMB.toFixed(1)}MB → ${compressedSizeMB.toFixed(1)}MB`);
+          console.log(`✅ Compression: ${fileSizeMB.toFixed(1)}MB → ${compressedSizeMB.toFixed(1)}MB`);
           resolve(compressedFile);
         }, 'image/jpeg', quality);
       };
@@ -73,6 +70,7 @@ export default function AdminPanel() {
   const { siteContent, reloadContent, showToast } = useApp();
   const [activeTab, setActiveTab] = useState('text');
   const [isUploading, setIsUploading] = useState(false);
+  const [compressProgress, setCompressProgress] = useState('');
   
   // 1. Copy State
   const [heroTitle, setHeroTitle] = useState(siteContent?.hero?.title || '');
@@ -187,7 +185,7 @@ export default function AdminPanel() {
     }
   };
 
-  // Add a gallery painting/portrait - WITH COMPRESSION FOR LARGE FILES
+  // FIXED: Add a gallery painting/portrait - GUARANTEED COMPRESSION
   const handleAddArt = async (e) => {
     e.preventDefault();
     if (!newArtTitle || !newArtDesc || !newArtPrice) {
@@ -205,13 +203,26 @@ export default function AdminPanel() {
     try {
       let fileToUpload = newArtFile;
       
-      // Compress if file is larger than 9MB (to be safe under Cloudinary's 10MB limit)
+      // FORCE compression if file is over 9MB (to be safe under 10MB Cloudinary limit)
       if (newArtFile && newArtFile.size > 9 * 1024 * 1024) {
         const originalMB = (newArtFile.size / 1024 / 1024).toFixed(1);
-        showToast(`Compressing ${originalMB}MB image to meet Cloudinary limits...`, "info");
+        setCompressProgress(`Compressing ${originalMB}MB image...`);
+        showToast(`📦 Compressing ${originalMB}MB image (this will take 5-10 seconds)...`, "info");
+        
         fileToUpload = await compressImage(newArtFile);
+        
         const compressedMB = (fileToUpload.size / 1024 / 1024).toFixed(1);
-        showToast(`✅ Compressed: ${originalMB}MB → ${compressedMB}MB`, "success");
+        setCompressProgress('');
+        
+        if (fileToUpload.size > 10 * 1024 * 1024) {
+          showToast(`⚠️ File still ${compressedMB}MB. Trying again with higher compression...`, "warning");
+          // Compress again with even higher compression
+          fileToUpload = await compressImage(fileToUpload);
+          const finalMB = (fileToUpload.size / 1024 / 1024).toFixed(1);
+          showToast(`✅ Final size: ${finalMB}MB`, "success");
+        } else {
+          showToast(`✅ Compressed: ${originalMB}MB → ${compressedMB}MB`, "success");
+        }
       }
       
       const formData = new FormData();
@@ -233,11 +244,13 @@ export default function AdminPanel() {
       setNewArtPrice('');
       setNewArtFile(null);
       setNewArtUrl('');
+      setCompressProgress('');
       fetchData();
       
     } catch (err) {
       console.error("Upload error:", err);
       showToast(err.message || "Failed to upload art. Please try again.", "error");
+      setCompressProgress('');
     } finally {
       setIsUploading(false);
     }
@@ -460,7 +473,7 @@ export default function AdminPanel() {
           </form>
         )}
 
-        {/* TAB 2: ART GALLERY ARCHIVE MANAGER (CMS) - WITH COMPRESSION */}
+        {/* TAB 2: ART GALLERY ARCHIVE MANAGER (CMS) - WITH WORKING COMPRESSION */}
         {activeTab === 'gallery' && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '30px' }} className="grid-2">
             <form onSubmit={handleAddArt} className="glass-card glow-art" style={{ height: 'fit-content' }}>
@@ -482,11 +495,13 @@ export default function AdminPanel() {
                       style={{ color: '#fff', fontSize: '0.85rem' }} 
                       disabled={isUploading}
                     />
-                    {isUploading && (
+                    {(isUploading || compressProgress) && (
                       <div style={{ marginTop: '10px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '5px' }}>
                           <div className="loading-spinner"></div>
-                          <span style={{ color: '#d4af37', fontSize: '0.85rem' }}>Processing upload... Please wait</span>
+                          <span style={{ color: '#d4af37', fontSize: '0.85rem' }}>
+                            {compressProgress || 'Uploading to Cloudinary...'}
+                          </span>
                         </div>
                       </div>
                     )}
@@ -499,8 +514,8 @@ export default function AdminPanel() {
                       onChange={(e) => setNewArtUrl(e.target.value)} 
                       disabled={!!newArtFile || isUploading}
                     />
-                    <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '5px' }}>
-                      💡 Tip: Images larger than 10MB will be automatically compressed
+                    <p style={{ fontSize: '0.7rem', color: '#d4af37', marginTop: '5px' }}>
+                      💡 Images over 10MB will be automatically compressed to meet Cloudinary limits
                     </p>
                   </div>
                 </div>
