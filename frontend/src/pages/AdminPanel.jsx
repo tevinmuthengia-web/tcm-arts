@@ -3,6 +3,72 @@ import { useApp } from '../App';
 import { api } from '../utils/api';
 import { Edit, Image, Plus, Trash2, Calendar, FileText, CheckCircle2, Shield, User } from 'lucide-react';
 
+// ==========================================
+// IMAGE COMPRESSION - HANDLES FILES OVER 10MB (Cloudinary free tier limit)
+// ==========================================
+const compressImage = (file) => {
+  return new Promise((resolve, reject) => {
+    const fileSizeMB = file.size / 1024 / 1024;
+    console.log(`Compressing ${fileSizeMB.toFixed(1)}MB file...`);
+    
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        
+        // Resize based on original size
+        let MAX_WIDTH = 1600;
+        let MAX_HEIGHT = 1600;
+        let quality = 0.8;
+        
+        if (fileSizeMB > 20) {
+          MAX_WIDTH = 1200;
+          MAX_HEIGHT = 1200;
+          quality = 0.7;
+        } else if (fileSizeMB > 10) {
+          MAX_WIDTH = 1400;
+          MAX_HEIGHT = 1400;
+          quality = 0.75;
+        }
+        
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height = Math.round((height * MAX_WIDTH) / width);
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width = Math.round((width * MAX_HEIGHT) / height);
+            height = MAX_HEIGHT;
+          }
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        canvas.toBlob((blob) => {
+          const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, '.jpg'), { 
+            type: 'image/jpeg',
+            lastModified: Date.now()
+          });
+          const compressedSizeMB = compressedFile.size / 1024 / 1024;
+          console.log(`Compressed: ${fileSizeMB.toFixed(1)}MB → ${compressedSizeMB.toFixed(1)}MB`);
+          resolve(compressedFile);
+        }, 'image/jpeg', quality);
+      };
+      img.onerror = () => reject(new Error('Failed to load image'));
+    };
+    reader.onerror = () => reject(new Error('Failed to read file'));
+  });
+};
+
 export default function AdminPanel() {
   const { siteContent, reloadContent, showToast } = useApp();
   const [activeTab, setActiveTab] = useState('text');
@@ -121,7 +187,7 @@ export default function AdminPanel() {
     }
   };
 
-  // ULTRA-FAST: Direct upload to Cloudinary - NO compression delay!
+  // Add a gallery painting/portrait - WITH COMPRESSION FOR LARGE FILES
   const handleAddArt = async (e) => {
     e.preventDefault();
     if (!newArtTitle || !newArtDesc || !newArtPrice) {
@@ -137,30 +203,37 @@ export default function AdminPanel() {
     setIsUploading(true);
     
     try {
+      let fileToUpload = newArtFile;
+      
+      // Compress if file is larger than 9MB (to be safe under Cloudinary's 10MB limit)
+      if (newArtFile && newArtFile.size > 9 * 1024 * 1024) {
+        const originalMB = (newArtFile.size / 1024 / 1024).toFixed(1);
+        showToast(`Compressing ${originalMB}MB image to meet Cloudinary limits...`, "info");
+        fileToUpload = await compressImage(newArtFile);
+        const compressedMB = (fileToUpload.size / 1024 / 1024).toFixed(1);
+        showToast(`✅ Compressed: ${originalMB}MB → ${compressedMB}MB`, "success");
+      }
+      
       const formData = new FormData();
       formData.append('title', newArtTitle);
       formData.append('description', newArtDesc);
       formData.append('medium', newArtMedium);
       formData.append('price', newArtPrice);
       
-      if (newArtFile) {
-        const fileSizeMB = newArtFile.size / 1024 / 1024;
-        showToast(`📤 Uploading ${fileSizeMB.toFixed(1)}MB image to Cloudinary...`, "info");
-        formData.append('image', newArtFile);
+      if (fileToUpload) {
+        formData.append('image', fileToUpload);
       } else if (newArtUrl) {
         formData.append('imageUrl', newArtUrl);
       }
 
       await api.gallery.add(formData);
-      showToast("🎨 Art piece added successfully! Cloudinary is optimizing the image.", "success");
-      
-      // Reset form
+      showToast("🎨 Art piece added successfully!", "success");
       setNewArtTitle('');
       setNewArtDesc('');
       setNewArtPrice('');
       setNewArtFile(null);
       setNewArtUrl('');
-      fetchData(); // Refresh gallery
+      fetchData();
       
     } catch (err) {
       console.error("Upload error:", err);
@@ -387,7 +460,7 @@ export default function AdminPanel() {
           </form>
         )}
 
-        {/* TAB 2: ART GALLERY ARCHIVE MANAGER (CMS) - ULTRA FAST */}
+        {/* TAB 2: ART GALLERY ARCHIVE MANAGER (CMS) - WITH COMPRESSION */}
         {activeTab === 'gallery' && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '30px' }} className="grid-2">
             <form onSubmit={handleAddArt} className="glass-card glow-art" style={{ height: 'fit-content' }}>
@@ -413,7 +486,7 @@ export default function AdminPanel() {
                       <div style={{ marginTop: '10px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '5px' }}>
                           <div className="loading-spinner"></div>
-                          <span style={{ color: '#d4af37', fontSize: '0.85rem' }}>Uploading to Cloudinary... Please wait</span>
+                          <span style={{ color: '#d4af37', fontSize: '0.85rem' }}>Processing upload... Please wait</span>
                         </div>
                       </div>
                     )}
@@ -426,10 +499,13 @@ export default function AdminPanel() {
                       onChange={(e) => setNewArtUrl(e.target.value)} 
                       disabled={!!newArtFile || isUploading}
                     />
+                    <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '5px' }}>
+                      💡 Tip: Images larger than 10MB will be automatically compressed
+                    </p>
                   </div>
                 </div>
                 <button type="submit" className="btn btn-gold" style={{ marginTop: '10px' }} disabled={isUploading}>
-                  {isUploading ? 'Uploading...' : <><Plus size={16} /> Post to Gallery</>}
+                  {isUploading ? 'Processing...' : <><Plus size={16} /> Post to Gallery</>}
                 </button>
               </div>
             </form>
