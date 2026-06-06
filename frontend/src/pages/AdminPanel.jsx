@@ -1,96 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../App';
 import { api } from '../utils/api';
-import { Edit, Image, Plus, Trash2, Calendar, FileText, CheckCircle2, Shield, User, Loader } from 'lucide-react';
-
-// ==========================================
-// ADVANCED IMAGE COMPRESSION - HANDLES 100MB+ FILES
-// ==========================================
-const compressImage = (file, onProgress) => {
-  return new Promise((resolve, reject) => {
-    const fileSizeMB = file.size / 1024 / 1024;
-    
-    // Show warning for very large files
-    if (fileSizeMB > 50) {
-      alert(`Your image is ${fileSizeMB.toFixed(1)}MB. This will be compressed to under 5MB. Please wait...`);
-    }
-    
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = (event) => {
-      const img = new Image();
-      img.src = event.target.result;
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
-        
-        // Aggressive resizing based on file size
-        let MAX_WIDTH = 1200;
-        let MAX_HEIGHT = 1200;
-        let quality = 0.8;
-        
-        if (fileSizeMB > 50) {
-          MAX_WIDTH = 800;
-          MAX_HEIGHT = 800;
-          quality = 0.6;
-        } else if (fileSizeMB > 30) {
-          MAX_WIDTH = 1000;
-          MAX_HEIGHT = 1000;
-          quality = 0.7;
-        } else if (fileSizeMB > 15) {
-          MAX_WIDTH = 1200;
-          MAX_HEIGHT = 1200;
-          quality = 0.75;
-        }
-        
-        // Calculate new dimensions
-        if (width > height) {
-          if (width > MAX_WIDTH) {
-            height = Math.round((height * MAX_WIDTH) / width);
-            width = MAX_WIDTH;
-          }
-        } else {
-          if (height > MAX_HEIGHT) {
-            width = Math.round((width * MAX_HEIGHT) / height);
-            height = MAX_HEIGHT;
-          }
-        }
-        
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-        
-        // Update progress
-        if (onProgress) onProgress(50);
-        
-        canvas.toBlob((blob) => {
-          const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, '.jpg'), { 
-            type: 'image/jpeg',
-            lastModified: Date.now()
-          });
-          
-          const compressedSizeMB = compressedFile.size / 1024 / 1024;
-          const savedPercent = Math.round((1 - compressedFile.size / file.size) * 100);
-          
-          console.log(`📸 Compression: ${fileSizeMB.toFixed(2)}MB → ${compressedSizeMB.toFixed(2)}MB (${savedPercent}% saved)`);
-          
-          if (onProgress) onProgress(100);
-          resolve(compressedFile);
-        }, 'image/jpeg', quality);
-      };
-      img.onerror = () => reject(new Error('Failed to load image'));
-    };
-    reader.onerror = () => reject(new Error('Failed to read file'));
-  });
-};
+import { Edit, Image, Plus, Trash2, Calendar, FileText, CheckCircle2, Shield, User } from 'lucide-react';
 
 export default function AdminPanel() {
   const { siteContent, reloadContent, showToast } = useApp();
   const [activeTab, setActiveTab] = useState('text');
-  const [isCompressing, setIsCompressing] = useState(false);
-  const [compressProgress, setCompressProgress] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
   
   // 1. Copy State
   const [heroTitle, setHeroTitle] = useState(siteContent?.hero?.title || '');
@@ -205,7 +121,7 @@ export default function AdminPanel() {
     }
   };
 
-  // Add a gallery painting/portrait - HANDLES 100MB+ FILES
+  // ULTRA-FAST: Direct upload to Cloudinary - NO compression delay!
   const handleAddArt = async (e) => {
     e.preventDefault();
     if (!newArtTitle || !newArtDesc || !newArtPrice) {
@@ -218,54 +134,39 @@ export default function AdminPanel() {
       return;
     }
 
+    setIsUploading(true);
+    
     try {
-      let fileToUpload = newArtFile;
-      
-      // Compress image if it exists (handles ANY file size)
-      if (newArtFile) {
-        const fileSizeMB = newArtFile.size / 1024 / 1024;
-        setIsCompressing(true);
-        setCompressProgress(0);
-        
-        showToast(`📦 Compressing ${fileSizeMB.toFixed(1)}MB image...`, "info");
-        
-        fileToUpload = await compressImage(newArtFile, (progress) => {
-          setCompressProgress(progress);
-        });
-        
-        const compressedSizeMB = fileToUpload.size / 1024 / 1024;
-        const savedPercent = Math.round((1 - fileToUpload.size / newArtFile.size) * 100);
-        
-        showToast(`✅ Compressed: ${fileSizeMB.toFixed(1)}MB → ${compressedSizeMB.toFixed(2)}MB (${savedPercent}% saved)`, "success");
-        setIsCompressing(false);
-      }
-      
       const formData = new FormData();
       formData.append('title', newArtTitle);
       formData.append('description', newArtDesc);
       formData.append('medium', newArtMedium);
       formData.append('price', newArtPrice);
       
-      if (fileToUpload) {
-        formData.append('image', fileToUpload);
+      if (newArtFile) {
+        const fileSizeMB = newArtFile.size / 1024 / 1024;
+        showToast(`📤 Uploading ${fileSizeMB.toFixed(1)}MB image to Cloudinary...`, "info");
+        formData.append('image', newArtFile);
       } else if (newArtUrl) {
         formData.append('imageUrl', newArtUrl);
       }
 
       await api.gallery.add(formData);
-      showToast("🎨 New art piece added to Fine Arts Studio!");
+      showToast("🎨 Art piece added successfully! Cloudinary is optimizing the image.", "success");
+      
+      // Reset form
       setNewArtTitle('');
       setNewArtDesc('');
       setNewArtPrice('');
       setNewArtFile(null);
       setNewArtUrl('');
-      setCompressProgress(0);
-      fetchData();
+      fetchData(); // Refresh gallery
+      
     } catch (err) {
       console.error("Upload error:", err);
       showToast(err.message || "Failed to upload art. Please try again.", "error");
-      setIsCompressing(false);
-      setCompressProgress(0);
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -486,11 +387,13 @@ export default function AdminPanel() {
           </form>
         )}
 
-        {/* TAB 2: ART GALLERY ARCHIVE MANAGER (CMS) - WITH PROGRESS BAR */}
+        {/* TAB 2: ART GALLERY ARCHIVE MANAGER (CMS) - ULTRA FAST */}
         {activeTab === 'gallery' && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '30px' }} className="grid-2">
             <form onSubmit={handleAddArt} className="glass-card glow-art" style={{ height: 'fit-content' }}>
-              <h3 style={{ fontSize: '1.2rem', fontFamily: 'var(--font-heading)', color: '#fff', marginBottom: '20px' }}>➕ Upload New Art Piece</h3>
+              <h3 style={{ fontSize: '1.2rem', fontFamily: 'var(--font-heading)', color: '#fff', marginBottom: '20px' }}>
+                ➕ Upload New Art Piece
+              </h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div className="form-group"><label className="form-label">Painting Title</label><input type="text" className="form-control focus-art" placeholder="E.g., Autumn Reflexes" value={newArtTitle} onChange={(e)=>setNewArtTitle(e.target.value)} required /></div>
                 <div className="form-group"><label className="form-label">Art Medium / Style</label><input type="text" className="form-control focus-art" placeholder="E.g., Oil pastels on board" value={newArtMedium} onChange={(e)=>setNewArtMedium(e.target.value)} required /></div>
@@ -499,24 +402,34 @@ export default function AdminPanel() {
                 <div className="form-group">
                   <label className="form-label">Visual Image Source</label>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <input type="file" accept="image/*" onChange={(e) => setNewArtFile(e.target.files[0])} style={{ color: '#fff', fontSize: '0.85rem' }} disabled={isCompressing} />
-                    {isCompressing && (
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={(e) => setNewArtFile(e.target.files[0])} 
+                      style={{ color: '#fff', fontSize: '0.85rem' }} 
+                      disabled={isUploading}
+                    />
+                    {isUploading && (
                       <div style={{ marginTop: '10px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '5px' }}>
-                          <Loader size={16} className="spin" style={{ color: '#d4af37' }} />
-                          <span style={{ color: '#d4af37', fontSize: '0.85rem' }}>Compressing image... {compressProgress}%</span>
-                        </div>
-                        <div style={{ width: '100%', height: '4px', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: '2px', overflow: 'hidden' }}>
-                          <div style={{ width: `${compressProgress}%`, height: '100%', backgroundColor: '#d4af37', transition: 'width 0.3s' }} />
+                          <div className="loading-spinner"></div>
+                          <span style={{ color: '#d4af37', fontSize: '0.85rem' }}>Uploading to Cloudinary... Please wait</span>
                         </div>
                       </div>
                     )}
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center' }}>- OR enter public link -</div>
-                    <input type="text" className="form-control focus-art" placeholder="https://images.unsplash.com/..." value={newArtUrl} onChange={(e) => setNewArtUrl(e.target.value)} disabled={!!newArtFile || isCompressing} />
+                    <input 
+                      type="text" 
+                      className="form-control focus-art" 
+                      placeholder="https://images.unsplash.com/..." 
+                      value={newArtUrl} 
+                      onChange={(e) => setNewArtUrl(e.target.value)} 
+                      disabled={!!newArtFile || isUploading}
+                    />
                   </div>
                 </div>
-                <button type="submit" className="btn btn-gold" style={{ marginTop: '10px' }} disabled={isCompressing}>
-                  {isCompressing ? 'Compressing... Please wait' : <><Plus size={16} /> Post to Gallery</>}
+                <button type="submit" className="btn btn-gold" style={{ marginTop: '10px' }} disabled={isUploading}>
+                  {isUploading ? 'Uploading...' : <><Plus size={16} /> Post to Gallery</>}
                 </button>
               </div>
             </form>

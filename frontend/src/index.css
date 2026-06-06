@@ -129,6 +129,31 @@ h3 {
 }
 
 /* ============================================
+   LOADING SPINNER FOR UPLOADS
+   ============================================ */
+
+.loading-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: var(--gold);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* Large spinner for full page loading */
+.loading-spinner-large {
+  display: inline-block;
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  border-top-color: var(--gold);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+/* ============================================
    GLASS MORPHISM CARDS
    ============================================ */
 
@@ -240,7 +265,7 @@ textarea.form-control {
   color: #0a0a0a;
 }
 
-.btn-gold:hover {
+.btn-gold:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 8px 20px rgba(212, 175, 55, 0.3);
 }
@@ -250,7 +275,7 @@ textarea.form-control {
   color: white;
 }
 
-.btn-indigo:hover {
+.btn-indigo:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 8px 20px rgba(99, 102, 241, 0.3);
 }
@@ -260,7 +285,7 @@ textarea.form-control {
   color: white;
 }
 
-.btn-emerald:hover {
+.btn-emerald:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
 }
@@ -271,7 +296,7 @@ textarea.form-control {
   border: 1px solid var(--border-color);
 }
 
-.btn-secondary:hover {
+.btn-secondary:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.12);
   color: var(--text-primary);
 }
@@ -282,7 +307,7 @@ textarea.form-control {
   border: 1px solid rgba(244, 63, 94, 0.3);
 }
 
-.btn-danger:hover {
+.btn-danger:hover:not(:disabled) {
   background: rgba(244, 63, 94, 0.25);
   transform: translateY(-2px);
 }
@@ -567,7 +592,7 @@ textarea.form-control {
 .mb-4 { margin-bottom: 32px; }
 
 /* ============================================
-   PROGRESS BAR FOR IMAGE COMPRESSION
+   PROGRESS BAR FOR IMAGE COMPRESSION (DEPRECATED - kept for compatibility)
    ============================================ */
 
 .progress-bar-container {
@@ -584,17 +609,6 @@ textarea.form-control {
   background: linear-gradient(90deg, var(--gold), var(--gold-dark));
   transition: width 0.3s ease;
   border-radius: 2px;
-}
-
-/* Loading spinner for compression indicator */
-.loading-spinner {
-  display: inline-block;
-  width: 16px;
-  height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: var(--gold);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
 }
 
 /* ============================================
@@ -657,12 +671,8 @@ textarea.form-control {
 }
 
 /* ============================================
-   SPINNER ANIMATION FOR COMPRESSION
+   UPLOAD SPINNER ANIMATION
    ============================================ */
-
-.spin {
-  animation: spin 1s linear infinite;
-}
 
 @keyframes spin {
   from {
@@ -671,5 +681,56 @@ textarea.form-control {
   to {
     transform: rotate(360deg);
   }
+}
+
+/* Small spinner for buttons */
+.spin-small {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+/* Medium spinner for inline loading */
+.spin-medium {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--gold);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* Disabled button cursor */
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+/* Upload status text */
+.upload-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  background: rgba(212, 175, 55, 0.1);
+  border-radius: 8px;
+  margin-top: 10px;
+  font-size: 0.85rem;
+  color: var(--gold);
+}
+
+/* File input styling */
+input[type="file"] {
+  cursor: pointer;
+}
+
+input[type="file"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
