@@ -7,7 +7,7 @@
       "email": "tevinmuthengia@gmail.com",
       "password": "$2a$10$yk6LrmIWvnyJK6tGA8P9x.HyThlGBtVm9Z1Jmpn6J.peAohqKPXqK",
       "role": "admin",
-      "createdAt": "2026-05-27T08:57:25.610Z"
+      "createdAt": "2026-05-27T08:57:25.61Z"
     },
     {
       "id": "owner-1",
@@ -16,7 +16,7 @@
       "email": "thecommonmass@gmail.com",
       "password": "$2a$10$yk6LrmIWvnyJK6tGA8P9x.29QZ/drqv0xB2TyCLNS9KDX47YYPrQS",
       "role": "admin",
-      "createdAt": "2026-05-27T08:57:25.610Z"
+      "createdAt": "2026-05-27T08:57:25.61Z"
     }
   ],
   "siteContent": {
@@ -46,98 +46,7 @@
       "proPrice": 10000
     }
   },
-  "gallery": [
-    {
-      "id": "art-1779485356664",
-      "title": "Portraits",
-      "description": "Groups of different pictures put together",
-      "medium": "Oil on Canvas",
-      "imageUrl": "https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5",
-      "price": 7500,
-      "isSold": false,
-      "createdAt": "2026-05-22T21:29:16.664Z"
-    },
-    {
-      "id": "art-1779485215101",
-      "title": "Art Collection",
-      "description": "Group of artwork ",
-      "medium": "Oil on Canvas",
-      "imageUrl": "/uploads/1779485215070-690369980.png",
-      "price": 9000,
-      "isSold": false,
-      "createdAt": "2026-05-22T21:26:55.101Z"
-    },
-    {
-      "id": "art-1779485122513",
-      "title": "Gallery Collection",
-      "description": "Different art put together",
-      "medium": "Oil on Canvas",
-      "imageUrl": "/uploads/1779485122492-879302212.png",
-      "price": 7000,
-      "isSold": false,
-      "createdAt": "2026-05-22T21:25:22.514Z"
-    },
-    {
-      "id": "art-1779485053445",
-      "title": "People Drawing",
-      "description": "Drawing of people",
-      "medium": "Oil on Canvas",
-      "imageUrl": "/uploads/1779485053426-452546224.png",
-      "price": 5000,
-      "isSold": false,
-      "createdAt": "2026-05-22T21:24:13.445Z"
-    },
-    {
-      "id": "art-1779484920208",
-      "title": "Water Paint Drawing",
-      "description": "A water painting hut",
-      "medium": "Oil on Canvas",
-      "imageUrl": "/uploads/1779484919843-1793344.jpg",
-      "price": 4000,
-      "isSold": false,
-      "createdAt": "2026-05-22T21:22:00.209Z"
-    },
-    {
-      "id": "art-1779484743967",
-      "title": "DJ",
-      "description": "Drawing of a DJ",
-      "medium": "Oil on Canvas",
-      "imageUrl": "/uploads/1779484743902-575343110.png",
-      "price": 3500,
-      "isSold": false,
-      "createdAt": "2026-05-22T21:19:03.967Z"
-    },
-    {
-      "id": "art-1779469489360",
-      "title": "Lion",
-      "description": "King of the Jungle",
-      "medium": "Oil on Canvas",
-      "imageUrl": "/uploads/1779469489357-229324624.jpg",
-      "price": 3000,
-      "isSold": false,
-      "createdAt": "2026-05-22T17:04:49.360Z"
-    },
-    {
-      "id": "art-1779469395543",
-      "title": "Flower",
-      "description": "Purple Flower",
-      "medium": "Oil on Canvas",
-      "imageUrl": "/uploads/1779469395099-472708295.jpg",
-      "price": 2000,
-      "isSold": false,
-      "createdAt": "2026-05-22T17:03:15.543Z"
-    },
-    {
-      "id": "art-1779469293221",
-      "title": "J Cole",
-      "description": "The picture above is about an American rapper, J Cole",
-      "medium": "Oil on Canvas",
-      "imageUrl": "/uploads/1779469293167-111846955.png",
-      "price": 20000,
-      "isSold": false,
-      "createdAt": "2026-05-22T17:01:33.221Z"
-    }
-  ],
+  "gallery": [],
   "classes": [
     {
       "id": "class-1",
