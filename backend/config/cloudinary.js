@@ -8,12 +8,15 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-// Simple memory storage (no CloudinaryStorage issues)
+// Memory storage for direct uploads
 const storage = multer.memoryStorage();
 
 const upload = multer({ 
   storage: storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  limits: { 
+    fileSize: 50 * 1024 * 1024, // 50MB limit
+    files: 1
+  },
   fileFilter: (req, file, cb) => {
     const allowedTypes = /jpeg|jpg|png|gif|webp/;
     const extname = allowedTypes.test(file.originalname.toLowerCase());
@@ -25,20 +28,29 @@ const upload = multer({
   }
 });
 
-// Helper function to upload to Cloudinary
+// Helper function to upload to Cloudinary with better error handling
 const uploadToCloudinary = (fileBuffer, folder = 'tcm-arts') => {
   return new Promise((resolve, reject) => {
+    console.log(`Starting Cloudinary upload, buffer size: ${fileBuffer.length} bytes`);
+    
     const uploadStream = cloudinary.uploader.upload_stream(
       {
         folder: folder,
         allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
-        transformation: [{ width: 1200, height: 1200, crop: 'limit' }]
+        transformation: [{ width: 1600, height: 1600, crop: 'limit' }],
+        timeout: 120000 // 2 minute timeout
       },
       (error, result) => {
-        if (error) reject(error);
-        else resolve(result);
+        if (error) {
+          console.error('Cloudinary upload error:', error);
+          reject(error);
+        } else {
+          console.log('Cloudinary upload success:', result.secure_url);
+          resolve(result);
+        }
       }
     );
+    
     uploadStream.end(fileBuffer);
   });
 };

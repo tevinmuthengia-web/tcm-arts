@@ -9,18 +9,18 @@ const multer = require('multer');
 const db = require('./database/db');
 const { authenticateToken, requireAdmin, JWT_SECRET } = require('./middleware/auth');
 
-// Import Cloudinary configuration (working version)
+// Import Cloudinary configuration
 const { cloudinary, upload, uploadToCloudinary } = require('./config/cloudinary');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Enable CORS and JSON parsing
+// Enable CORS and JSON parsing with increased limits for large files
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Setup static uploads directory for OLD images (kept for backward compatibility)
-// Any existing images in this folder will still be served, but new uploads go to Cloudinary
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
@@ -31,7 +31,6 @@ app.use('/uploads', express.static(uploadsDir));
 // 1. AUTHENTICATION ENDPOINTS
 // ==========================================
 
-// Register standard member (free, no subscription needed)
 app.post('/api/auth/register', (req, res) => {
   const { name, email, password } = req.body;
   if (!name || !email || !password) {
@@ -60,7 +59,6 @@ app.post('/api/auth/register', (req, res) => {
   data.users.push(newUser);
   db.write(data);
 
-  // Generate JWT token
   const token = jwt.sign(
     { id: newUser.id, name: newUser.name, email: newUser.email, role: newUser.role },
     JWT_SECRET,
@@ -73,7 +71,6 @@ app.post('/api/auth/register', (req, res) => {
   });
 });
 
-// Login
 app.post('/api/auth/login', (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
@@ -99,7 +96,6 @@ app.post('/api/auth/login', (req, res) => {
   });
 });
 
-// Get user profile
 app.get('/api/auth/me', authenticateToken, (req, res) => {
   const data = db.read();
   const user = data.users.find(u => u.id === req.user.id);
@@ -117,19 +113,16 @@ app.get('/api/auth/me', authenticateToken, (req, res) => {
 // 2. PUBLIC DATA RETRIEVAL ENDPOINTS
 // ==========================================
 
-// Get editable site text blocks
 app.get('/api/content', (req, res) => {
   const data = db.read();
   res.json(data.siteContent);
 });
 
-// Get art gallery
 app.get('/api/gallery', (req, res) => {
   const data = db.read();
   res.json(data.gallery);
 });
 
-// Get classes
 app.get('/api/classes', (req, res) => {
   const data = db.read();
   res.json(data.classes);
@@ -140,12 +133,10 @@ app.get('/api/classes', (req, res) => {
 // 3. ADMIN CONTENT MANAGEMENT (CMS) ENDPOINTS
 // ==========================================
 
-// Update any textual content block
 app.put('/api/content', requireAdmin, (req, res) => {
   const newContent = req.body;
   const data = db.read();
   
-  // Merge the content updates
   data.siteContent = {
     ...data.siteContent,
     ...newContent
@@ -155,20 +146,37 @@ app.put('/api/content', requireAdmin, (req, res) => {
   res.json({ message: 'Website content updated successfully!', siteContent: data.siteContent });
 });
 
-// Add new painting/portrait to gallery (UPDATED for Cloudinary with memory storage)
+// FIXED: Add new painting/portrait to gallery with better error handling
 app.post('/api/gallery', requireAdmin, upload.single('image'), async (req, res) => {
+  console.log('=== GALLERY UPLOAD REQUEST RECEIVED ===');
+  console.log('Body fields:', Object.keys(req.body));
+  console.log('File present:', !!req.file);
+  
   const { title, description, medium, price } = req.body;
+  
   if (!title || !description || !medium || !price) {
+    console.log('Missing fields:', { title, description, medium, price });
     return res.status(400).json({ error: 'All description fields are required' });
   }
 
   try {
     let imageUrl = req.body.imageUrl || '';
     
-    // If a file was uploaded, upload to Cloudinary
     if (req.file) {
+      const fileSizeMB = req.file.size / 1024 / 1024;
+      console.log(`Processing upload: ${req.file.originalname} (${fileSizeMB.toFixed(2)} MB)`);
+      console.log('Cloudinary credentials present:', {
+        cloud_name: !!process.env.CLOUDINARY_CLOUD_NAME,
+        api_key: !!process.env.CLOUDINARY_API_KEY,
+        api_secret: !!process.env.CLOUDINARY_API_SECRET
+      });
+      
       const result = await uploadToCloudinary(req.file.buffer);
       imageUrl = result.secure_url;
+      console.log('Upload successful, URL:', imageUrl);
+      
+      // Clear buffer to free memory
+      req.file.buffer = null;
     }
 
     const data = db.read();
@@ -186,14 +194,21 @@ app.post('/api/gallery', requireAdmin, upload.single('image'), async (req, res) 
     data.gallery.unshift(newArt);
     db.write(data);
 
-    res.status(201).json({ message: 'Art piece added successfully!', art: newArt });
+    console.log('Art piece saved successfully, ID:', newArt.id);
+    res.status(201).json({ 
+      message: 'Art piece added successfully!', 
+      art: newArt 
+    });
   } catch (error) {
-    console.error('Upload error:', error);
-    res.status(500).json({ error: 'Failed to upload image: ' + error.message });
+    console.error('Upload error details:', error);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ 
+      error: 'Failed to upload image: ' + error.message 
+    });
   }
 });
 
-// Edit gallery piece details (UPDATED for Cloudinary with memory storage)
+// Edit gallery piece details
 app.put('/api/gallery/:id', requireAdmin, upload.single('image'), async (req, res) => {
   const { id } = req.params;
   const { title, description, medium, price, isSold } = req.body;
@@ -208,10 +223,10 @@ app.put('/api/gallery/:id', requireAdmin, upload.single('image'), async (req, re
   try {
     let imageUrl = data.gallery[artIndex].imageUrl;
     
-    // If a new file was uploaded, upload to Cloudinary
     if (req.file) {
       const result = await uploadToCloudinary(req.file.buffer);
       imageUrl = result.secure_url;
+      req.file.buffer = null;
     } else if (req.body.imageUrl) {
       imageUrl = req.body.imageUrl;
     }
@@ -234,16 +249,14 @@ app.put('/api/gallery/:id', requireAdmin, upload.single('image'), async (req, re
   }
 });
 
-// Delete gallery piece (UPDATED to also delete from Cloudinary)
+// Delete gallery piece
 app.delete('/api/gallery/:id', requireAdmin, async (req, res) => {
   const { id } = req.params;
   const data = db.read();
   const artToDelete = data.gallery.find(art => art.id === id);
   
-  // If the image is stored in Cloudinary, delete it from Cloudinary as well
   if (artToDelete && artToDelete.imageUrl && artToDelete.imageUrl.includes('cloudinary.com')) {
     try {
-      // Extract the public ID from the Cloudinary URL
       const urlParts = artToDelete.imageUrl.split('/');
       const filenameWithExt = urlParts[urlParts.length - 1];
       const filename = filenameWithExt.split('.')[0];
@@ -328,10 +341,9 @@ app.delete('/api/classes/:id', requireAdmin, (req, res) => {
   res.json({ message: 'Class deleted successfully!' });
 });
 
-// View all users (Members + Admins)
+// View all users
 app.get('/api/admin/users', requireAdmin, (req, res) => {
   const data = db.read();
-  // Don't send password hashes!
   const safeUsers = data.users.map(u => ({
     id: u.id,
     name: u.name,
@@ -347,7 +359,6 @@ app.get('/api/admin/users', requireAdmin, (req, res) => {
 // 4. BOOKINGS & CUSTOM COMMISSIONS
 // ==========================================
 
-// Create booking for classes/sessions
 app.post('/api/bookings', authenticateToken, (req, res) => {
   const { classId } = req.body;
   if (!classId) {
@@ -360,7 +371,6 @@ app.post('/api/bookings', authenticateToken, (req, res) => {
     return res.status(404).json({ error: 'Class/Session not found' });
   }
 
-  // Check if already booked to prevent duplicates
   const alreadyBooked = data.bookings.find(b => b.userId === req.user.id && b.classId === classId);
   if (alreadyBooked) {
     return res.status(400).json({ error: 'You are already registered for this class.' });
@@ -385,14 +395,12 @@ app.post('/api/bookings', authenticateToken, (req, res) => {
   res.status(201).json({ message: 'Successfully booked class!', booking: newBooking });
 });
 
-// Get user's bookings
 app.get('/api/bookings/my', authenticateToken, (req, res) => {
   const data = db.read();
   const myBookings = data.bookings.filter(b => b.userId === req.user.id);
   res.json(myBookings);
 });
 
-// Request portrait/art commission
 app.post('/api/commissions', authenticateToken, (req, res) => {
   const { medium, size, description, targetDate } = req.body;
   if (!medium || !size || !description) {
@@ -418,20 +426,17 @@ app.post('/api/commissions', authenticateToken, (req, res) => {
   res.status(201).json({ message: 'Commission request submitted successfully!', commission: newCommission });
 });
 
-// Get user's commission requests
 app.get('/api/commissions/my', authenticateToken, (req, res) => {
   const data = db.read();
   const myCommissions = data.commissions.filter(c => c.userId === req.user.id);
   res.json(myCommissions);
 });
 
-// View all commissions (Admin only)
 app.get('/api/admin/commissions', requireAdmin, (req, res) => {
   const data = db.read();
   res.json(data.commissions);
 });
 
-// Update commission status (Admin only)
 app.put('/api/admin/commissions/:id', requireAdmin, (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
@@ -455,5 +460,6 @@ app.listen(PORT, () => {
   console.log(`👤 Admin: tevinmuthengia@gmail.com (pwd: Muthengia2040#)`);
   console.log(`👤 Owner: thecommonmass@gmail.com (pwd: Tesh@2026)`);
   console.log(`📸 Images stored in Cloudinary (persistent!)`);
+  console.log(`⚡ Max file size: 50MB`);
   console.log(`============================================`);
 });
