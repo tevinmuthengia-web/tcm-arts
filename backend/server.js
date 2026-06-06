@@ -6,11 +6,13 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
 
-const db = require('./database/db');
 const { authenticateToken, requireAdmin, JWT_SECRET } = require('./middleware/auth');
 
 // Import Cloudinary configuration
 const { cloudinary, upload, uploadToCloudinary } = require('./config/cloudinary');
+
+// Import Supabase database pool
+const pool = require('./config/supabase');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -31,81 +33,103 @@ app.use('/uploads', express.static(uploadsDir));
 // 1. AUTHENTICATION ENDPOINTS
 // ==========================================
 
-app.post('/api/auth/register', (req, res) => {
+// Register standard member
+app.post('/api/auth/register', async (req, res) => {
   const { name, email, password } = req.body;
   if (!name || !email || !password) {
     return res.status(400).json({ error: 'All fields are required' });
   }
 
-  const data = db.read();
-  const existingUser = data.users.find(u => u.email.toLowerCase() === email.toLowerCase());
-  
-  if (existingUser) {
-    return res.status(400).json({ error: 'An account with this email already exists.' });
+  try {
+    // Check if user exists
+    const existingUser = await pool.query(
+      'SELECT * FROM users WHERE email = $1',
+      [email.toLowerCase()]
+    );
+
+    if (existingUser.rows.length > 0) {
+      return res.status(400).json({ error: 'An account with this email already exists.' });
+    }
+
+    const salt = bcrypt.genSaltSync(10);
+    const hashedPassword = bcrypt.hashSync(password, salt);
+
+    const newUserId = 'user-' + Date.now();
+    
+    await pool.query(
+      `INSERT INTO users (id, name, email, password, role, created_at) 
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [newUserId, name, email.toLowerCase(), hashedPassword, 'member', new Date().toISOString()]
+    );
+
+    const token = jwt.sign(
+      { id: newUserId, name, email: email.toLowerCase(), role: 'member' },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.status(201).json({
+      token,
+      user: { id: newUserId, name, email: email.toLowerCase(), role: 'member' }
+    });
+  } catch (error) {
+    console.error('Register error:', error);
+    res.status(500).json({ error: 'Registration failed' });
   }
-
-  const salt = bcrypt.genSaltSync(10);
-  const hashedPassword = bcrypt.hashSync(password, salt);
-
-  const newUser = {
-    id: 'user-' + Date.now(),
-    name,
-    email: email.toLowerCase(),
-    password: hashedPassword,
-    role: 'member',
-    createdAt: new Date().toISOString()
-  };
-
-  data.users.push(newUser);
-  db.write(data);
-
-  const token = jwt.sign(
-    { id: newUser.id, name: newUser.name, email: newUser.email, role: newUser.role },
-    JWT_SECRET,
-    { expiresIn: '7d' }
-  );
-
-  res.status(201).json({
-    token,
-    user: { id: newUser.id, name: newUser.name, email: newUser.email, role: newUser.role }
-  });
 });
 
-app.post('/api/auth/login', (req, res) => {
+// Login
+app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
     return res.status(400).json({ error: 'Email and password are required' });
   }
 
-  const data = db.read();
-  const user = data.users.find(u => u.email.toLowerCase() === email.toLowerCase());
+  try {
+    const result = await pool.query(
+      'SELECT * FROM users WHERE email = $1',
+      [email.toLowerCase()]
+    );
 
-  if (!user || !bcrypt.compareSync(password, user.password)) {
-    return res.status(400).json({ error: 'Invalid email or password.' });
+    const user = result.rows[0];
+
+    if (!user || !bcrypt.compareSync(password, user.password)) {
+      return res.status(400).json({ error: 'Invalid email or password.' });
+    }
+
+    const token = jwt.sign(
+      { id: user.id, name: user.name, email: user.email, role: user.role },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      token,
+      user: { id: user.id, name: user.name, email: user.email, role: user.role }
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Login failed' });
   }
-
-  const token = jwt.sign(
-    { id: user.id, name: user.name, email: user.email, role: user.role },
-    JWT_SECRET,
-    { expiresIn: '7d' }
-  );
-
-  res.json({
-    token,
-    user: { id: user.id, name: user.name, email: user.email, role: user.role }
-  });
 });
 
-app.get('/api/auth/me', authenticateToken, (req, res) => {
-  const data = db.read();
-  const user = data.users.find(u => u.id === req.user.id);
-  if (!user) {
-    return res.status(404).json({ error: 'User not found' });
-  }
+// Get user profile
+app.get('/api/auth/me', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM users WHERE id = $1', [req.user.id]);
+    const user = result.rows[0];
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
 
-  res.json({
-    user: { id: user.id, name: user.name, email: user.email, role: user.role }
-  });
+    res.json({
+      user: { id: user.id, name: user.name, email: user.email, role: user.role }
+    });
+  } catch (error) {
+    console.error('Profile error:', error);
+    res.status(500).json({ error: 'Failed to get profile' });
+  }
 });
 
 
@@ -113,19 +137,43 @@ app.get('/api/auth/me', authenticateToken, (req, res) => {
 // 2. PUBLIC DATA RETRIEVAL ENDPOINTS
 // ==========================================
 
-app.get('/api/content', (req, res) => {
-  const data = db.read();
-  res.json(data.siteContent);
+// Get editable site text blocks
+app.get('/api/content', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM site_content');
+    const content = {};
+    result.rows.forEach(row => {
+      content[row.key] = row.value;
+    });
+    res.json(content);
+  } catch (error) {
+    console.error('Content error:', error);
+    res.status(500).json({ error: 'Failed to get content' });
+  }
 });
 
-app.get('/api/gallery', (req, res) => {
-  const data = db.read();
-  res.json(data.gallery);
+// Get art gallery
+app.get('/api/gallery', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM gallery ORDER BY created_at DESC'
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Gallery error:', error);
+    res.status(500).json({ error: 'Failed to get gallery' });
+  }
 });
 
-app.get('/api/classes', (req, res) => {
-  const data = db.read();
-  res.json(data.classes);
+// Get classes
+app.get('/api/classes', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM classes');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Classes error:', error);
+    res.status(500).json({ error: 'Failed to get classes' });
+  }
 });
 
 
@@ -133,29 +181,31 @@ app.get('/api/classes', (req, res) => {
 // 3. ADMIN CONTENT MANAGEMENT (CMS) ENDPOINTS
 // ==========================================
 
-app.put('/api/content', requireAdmin, (req, res) => {
+// Update any textual content block
+app.put('/api/content', requireAdmin, async (req, res) => {
   const newContent = req.body;
-  const data = db.read();
   
-  data.siteContent = {
-    ...data.siteContent,
-    ...newContent
-  };
-  
-  db.write(data);
-  res.json({ message: 'Website content updated successfully!', siteContent: data.siteContent });
+  try {
+    for (const [key, value] of Object.entries(newContent)) {
+      await pool.query(
+        `INSERT INTO site_content (key, value) 
+         VALUES ($1, $2) 
+         ON CONFLICT (key) DO UPDATE SET value = $2`,
+        [key, value]
+      );
+    }
+    res.json({ message: 'Website content updated successfully!', siteContent: newContent });
+  } catch (error) {
+    console.error('Update content error:', error);
+    res.status(500).json({ error: 'Failed to update content' });
+  }
 });
 
-// FIXED: Add new painting/portrait to gallery with better error handling
+// Add new painting/portrait to gallery
 app.post('/api/gallery', requireAdmin, upload.single('image'), async (req, res) => {
-  console.log('=== GALLERY UPLOAD REQUEST RECEIVED ===');
-  console.log('Body fields:', Object.keys(req.body));
-  console.log('File present:', !!req.file);
-  
   const { title, description, medium, price } = req.body;
   
   if (!title || !description || !medium || !price) {
-    console.log('Missing fields:', { title, description, medium, price });
     return res.status(400).json({ error: 'All description fields are required' });
   }
 
@@ -165,46 +215,31 @@ app.post('/api/gallery', requireAdmin, upload.single('image'), async (req, res) 
     if (req.file) {
       const fileSizeMB = req.file.size / 1024 / 1024;
       console.log(`Processing upload: ${req.file.originalname} (${fileSizeMB.toFixed(2)} MB)`);
-      console.log('Cloudinary credentials present:', {
-        cloud_name: !!process.env.CLOUDINARY_CLOUD_NAME,
-        api_key: !!process.env.CLOUDINARY_API_KEY,
-        api_secret: !!process.env.CLOUDINARY_API_SECRET
-      });
       
       const result = await uploadToCloudinary(req.file.buffer);
       imageUrl = result.secure_url;
       console.log('Upload successful, URL:', imageUrl);
       
-      // Clear buffer to free memory
       req.file.buffer = null;
     }
 
-    const data = db.read();
-    const newArt = {
-      id: 'art-' + Date.now(),
-      title,
-      description,
-      medium,
-      imageUrl: imageUrl || 'https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?q=80&w=800',
-      price: parseFloat(price),
-      isSold: false,
-      createdAt: new Date().toISOString()
-    };
+    const newArtId = 'art-' + Date.now();
+    
+    await pool.query(
+      `INSERT INTO gallery (id, title, description, medium, image_url, price, is_sold, created_at) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [newArtId, title, description, medium, imageUrl, parseFloat(price), false, new Date().toISOString()]
+    );
 
-    data.gallery.unshift(newArt);
-    db.write(data);
-
-    console.log('Art piece saved successfully, ID:', newArt.id);
+    const result = await pool.query('SELECT * FROM gallery WHERE id = $1', [newArtId]);
+    
     res.status(201).json({ 
       message: 'Art piece added successfully!', 
-      art: newArt 
+      art: result.rows[0]
     });
   } catch (error) {
-    console.error('Upload error details:', error);
-    console.error('Error stack:', error.stack);
-    res.status(500).json({ 
-      error: 'Failed to upload image: ' + error.message 
-    });
+    console.error('Upload error:', error);
+    res.status(500).json({ error: 'Failed to upload image: ' + error.message });
   }
 });
 
@@ -213,145 +248,137 @@ app.put('/api/gallery/:id', requireAdmin, upload.single('image'), async (req, re
   const { id } = req.params;
   const { title, description, medium, price, isSold } = req.body;
 
-  const data = db.read();
-  const artIndex = data.gallery.findIndex(art => art.id === id);
-
-  if (artIndex === -1) {
-    return res.status(404).json({ error: 'Art piece not found' });
-  }
-
   try {
-    let imageUrl = data.gallery[artIndex].imageUrl;
+    let imageUrl = null;
     
     if (req.file) {
       const result = await uploadToCloudinary(req.file.buffer);
       imageUrl = result.secure_url;
       req.file.buffer = null;
-    } else if (req.body.imageUrl) {
-      imageUrl = req.body.imageUrl;
     }
 
-    data.gallery[artIndex] = {
-      ...data.gallery[artIndex],
-      title: title || data.gallery[artIndex].title,
-      description: description || data.gallery[artIndex].description,
-      medium: medium || data.gallery[artIndex].medium,
-      price: price ? parseFloat(price) : data.gallery[artIndex].price,
-      isSold: isSold === 'true' || isSold === true,
-      imageUrl
-    };
-
-    db.write(data);
-    res.json({ message: 'Art piece updated successfully!', art: data.gallery[artIndex] });
+    let updateQuery = `UPDATE gallery SET 
+      title = COALESCE($1, title),
+      description = COALESCE($2, description),
+      medium = COALESCE($3, medium),
+      price = COALESCE($4, price),
+      is_sold = COALESCE($5, is_sold)`;
+    
+    const params = [title || null, description || null, medium || null, price ? parseFloat(price) : null, isSold === 'true' || isSold === true];
+    
+    if (imageUrl) {
+      updateQuery += `, image_url = $6`;
+      params.push(imageUrl);
+    }
+    
+    updateQuery += ` WHERE id = $${params.length + 1}`;
+    params.push(id);
+    
+    await pool.query(updateQuery, params);
+    
+    const result = await pool.query('SELECT * FROM gallery WHERE id = $1', [id]);
+    res.json({ message: 'Art piece updated successfully!', art: result.rows[0] });
   } catch (error) {
-    console.error('Upload error:', error);
-    res.status(500).json({ error: 'Failed to upload image: ' + error.message });
+    console.error('Update error:', error);
+    res.status(500).json({ error: 'Failed to update art piece' });
   }
 });
 
 // Delete gallery piece
 app.delete('/api/gallery/:id', requireAdmin, async (req, res) => {
   const { id } = req.params;
-  const data = db.read();
-  const artToDelete = data.gallery.find(art => art.id === id);
   
-  if (artToDelete && artToDelete.imageUrl && artToDelete.imageUrl.includes('cloudinary.com')) {
-    try {
-      const urlParts = artToDelete.imageUrl.split('/');
-      const filenameWithExt = urlParts[urlParts.length - 1];
-      const filename = filenameWithExt.split('.')[0];
-      const publicId = `tcm-arts/${filename}`;
-      
-      await cloudinary.uploader.destroy(publicId);
-      console.log(`Deleted image from Cloudinary: ${publicId}`);
-    } catch (error) {
-      console.error('Failed to delete from Cloudinary:', error);
+  try {
+    const result = await pool.query('DELETE FROM gallery WHERE id = $1 RETURNING *', [id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Art piece not found' });
     }
+    
+    res.json({ message: 'Art piece deleted successfully!' });
+  } catch (error) {
+    console.error('Delete error:', error);
+    res.status(500).json({ error: 'Failed to delete art piece' });
   }
-  
-  const filteredGallery = data.gallery.filter(art => art.id !== id);
-
-  if (filteredGallery.length === data.gallery.length) {
-    return res.status(404).json({ error: 'Art piece not found' });
-  }
-
-  data.gallery = filteredGallery;
-  db.write(data);
-  res.json({ message: 'Art piece deleted successfully!' });
 });
 
 // Add class
-app.post('/api/classes', requireAdmin, (req, res) => {
+app.post('/api/classes', requireAdmin, async (req, res) => {
   const { category, title, description, schedule, price } = req.body;
   if (!category || !title || !description || !schedule || !price) {
     return res.status(400).json({ error: 'All fields are required' });
   }
 
-  const data = db.read();
-  const newClass = {
-    id: 'class-' + Date.now(),
-    category,
-    title,
-    description,
-    schedule,
-    price: parseFloat(price)
-  };
+  try {
+    const newClassId = 'class-' + Date.now();
+    
+    await pool.query(
+      `INSERT INTO classes (id, category, title, description, schedule, price) 
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [newClassId, category, title, description, schedule, parseFloat(price)]
+    );
 
-  data.classes.push(newClass);
-  db.write(data);
-  res.status(201).json({ message: 'Class added successfully!', classItem: newClass });
+    const result = await pool.query('SELECT * FROM classes WHERE id = $1', [newClassId]);
+    res.status(201).json({ message: 'Class added successfully!', classItem: result.rows[0] });
+  } catch (error) {
+    console.error('Add class error:', error);
+    res.status(500).json({ error: 'Failed to add class' });
+  }
 });
 
 // Edit class
-app.put('/api/classes/:id', requireAdmin, (req, res) => {
+app.put('/api/classes/:id', requireAdmin, async (req, res) => {
   const { id } = req.params;
   const { title, description, schedule, price } = req.body;
 
-  const data = db.read();
-  const classIndex = data.classes.findIndex(c => c.id === id);
+  try {
+    await pool.query(
+      `UPDATE classes SET 
+        title = COALESCE($1, title),
+        description = COALESCE($2, description),
+        schedule = COALESCE($3, schedule),
+        price = COALESCE($4, price)
+       WHERE id = $5`,
+      [title || null, description || null, schedule || null, price ? parseFloat(price) : null, id]
+    );
 
-  if (classIndex === -1) {
-    return res.status(404).json({ error: 'Class not found' });
+    const result = await pool.query('SELECT * FROM classes WHERE id = $1', [id]);
+    res.json({ message: 'Class updated successfully!', classItem: result.rows[0] });
+  } catch (error) {
+    console.error('Update class error:', error);
+    res.status(500).json({ error: 'Failed to update class' });
   }
-
-  data.classes[classIndex] = {
-    ...data.classes[classIndex],
-    title: title || data.classes[classIndex].title,
-    description: description || data.classes[classIndex].description,
-    schedule: schedule || data.classes[classIndex].schedule,
-    price: price ? parseFloat(price) : data.classes[classIndex].price
-  };
-
-  db.write(data);
-  res.json({ message: 'Class updated successfully!', classItem: data.classes[classIndex] });
 });
 
 // Delete class
-app.delete('/api/classes/:id', requireAdmin, (req, res) => {
+app.delete('/api/classes/:id', requireAdmin, async (req, res) => {
   const { id } = req.params;
-  const data = db.read();
-  const filteredClasses = data.classes.filter(c => c.id !== id);
-
-  if (filteredClasses.length === data.classes.length) {
-    return res.status(404).json({ error: 'Class not found' });
+  
+  try {
+    const result = await pool.query('DELETE FROM classes WHERE id = $1 RETURNING *', [id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Class not found' });
+    }
+    
+    res.json({ message: 'Class deleted successfully!' });
+  } catch (error) {
+    console.error('Delete class error:', error);
+    res.status(500).json({ error: 'Failed to delete class' });
   }
-
-  data.classes = filteredClasses;
-  db.write(data);
-  res.json({ message: 'Class deleted successfully!' });
 });
 
-// View all users
-app.get('/api/admin/users', requireAdmin, (req, res) => {
-  const data = db.read();
-  const safeUsers = data.users.map(u => ({
-    id: u.id,
-    name: u.name,
-    email: u.email,
-    role: u.role,
-    createdAt: u.createdAt
-  }));
-  res.json(safeUsers);
+// View all users (Admin only)
+app.get('/api/admin/users', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT id, name, email, role, created_at FROM users ORDER BY created_at DESC'
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get users error:', error);
+    res.status(500).json({ error: 'Failed to get users' });
+  }
 });
 
 
@@ -359,98 +386,128 @@ app.get('/api/admin/users', requireAdmin, (req, res) => {
 // 4. BOOKINGS & CUSTOM COMMISSIONS
 // ==========================================
 
-app.post('/api/bookings', authenticateToken, (req, res) => {
+// Create booking for classes/sessions
+app.post('/api/bookings', authenticateToken, async (req, res) => {
   const { classId } = req.body;
   if (!classId) {
     return res.status(400).json({ error: 'Class ID is required' });
   }
 
-  const data = db.read();
-  const classItem = data.classes.find(c => c.id === classId);
-  if (!classItem) {
-    return res.status(404).json({ error: 'Class/Session not found' });
+  try {
+    const classResult = await pool.query('SELECT * FROM classes WHERE id = $1', [classId]);
+    const classItem = classResult.rows[0];
+    
+    if (!classItem) {
+      return res.status(404).json({ error: 'Class/Session not found' });
+    }
+
+    const existingBooking = await pool.query(
+      'SELECT * FROM bookings WHERE user_id = $1 AND class_id = $2',
+      [req.user.id, classId]
+    );
+    
+    if (existingBooking.rows.length > 0) {
+      return res.status(400).json({ error: 'You are already registered for this class.' });
+    }
+
+    const newBookingId = 'book-' + Date.now();
+    
+    await pool.query(
+      `INSERT INTO bookings (id, user_id, user_name, class_id, class_title, class_category, schedule, price, status, created_at) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [newBookingId, req.user.id, req.user.name, classItem.id, classItem.title, classItem.category, classItem.schedule, classItem.price, 'Confirmed', new Date().toISOString()]
+    );
+
+    const result = await pool.query('SELECT * FROM bookings WHERE id = $1', [newBookingId]);
+    res.status(201).json({ message: 'Successfully booked class!', booking: result.rows[0] });
+  } catch (error) {
+    console.error('Booking error:', error);
+    res.status(500).json({ error: 'Failed to create booking' });
   }
-
-  const alreadyBooked = data.bookings.find(b => b.userId === req.user.id && b.classId === classId);
-  if (alreadyBooked) {
-    return res.status(400).json({ error: 'You are already registered for this class.' });
-  }
-
-  const newBooking = {
-    id: 'book-' + Date.now(),
-    userId: req.user.id,
-    userName: req.user.name,
-    classId: classItem.id,
-    classTitle: classItem.title,
-    classCategory: classItem.category,
-    schedule: classItem.schedule,
-    price: classItem.price,
-    status: 'Confirmed',
-    createdAt: new Date().toISOString()
-  };
-
-  data.bookings.push(newBooking);
-  db.write(data);
-
-  res.status(201).json({ message: 'Successfully booked class!', booking: newBooking });
 });
 
-app.get('/api/bookings/my', authenticateToken, (req, res) => {
-  const data = db.read();
-  const myBookings = data.bookings.filter(b => b.userId === req.user.id);
-  res.json(myBookings);
+// Get user's bookings
+app.get('/api/bookings/my', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM bookings WHERE user_id = $1 ORDER BY created_at DESC',
+      [req.user.id]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get bookings error:', error);
+    res.status(500).json({ error: 'Failed to get bookings' });
+  }
 });
 
-app.post('/api/commissions', authenticateToken, (req, res) => {
+// Request portrait/art commission
+app.post('/api/commissions', authenticateToken, async (req, res) => {
   const { medium, size, description, targetDate } = req.body;
   if (!medium || !size || !description) {
     return res.status(400).json({ error: 'Medium, size, and details are required' });
   }
 
-  const data = db.read();
-  const newCommission = {
-    id: 'comm-' + Date.now(),
-    userId: req.user.id,
-    userName: req.user.name,
-    medium,
-    size,
-    description,
-    targetDate: targetDate || 'Flexible',
-    status: 'Pending Review',
-    createdAt: new Date().toISOString()
-  };
+  try {
+    const newCommissionId = 'comm-' + Date.now();
+    
+    await pool.query(
+      `INSERT INTO commissions (id, user_id, user_name, medium, size, description, target_date, status, created_at) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [newCommissionId, req.user.id, req.user.name, medium, size, description, targetDate || 'Flexible', 'Pending Review', new Date().toISOString()]
+    );
 
-  data.commissions.push(newCommission);
-  db.write(data);
-
-  res.status(201).json({ message: 'Commission request submitted successfully!', commission: newCommission });
+    const result = await pool.query('SELECT * FROM commissions WHERE id = $1', [newCommissionId]);
+    res.status(201).json({ message: 'Commission request submitted successfully!', commission: result.rows[0] });
+  } catch (error) {
+    console.error('Commission error:', error);
+    res.status(500).json({ error: 'Failed to submit commission' });
+  }
 });
 
-app.get('/api/commissions/my', authenticateToken, (req, res) => {
-  const data = db.read();
-  const myCommissions = data.commissions.filter(c => c.userId === req.user.id);
-  res.json(myCommissions);
+// Get user's commission requests
+app.get('/api/commissions/my', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM commissions WHERE user_id = $1 ORDER BY created_at DESC',
+      [req.user.id]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get commissions error:', error);
+    res.status(500).json({ error: 'Failed to get commissions' });
+  }
 });
 
-app.get('/api/admin/commissions', requireAdmin, (req, res) => {
-  const data = db.read();
-  res.json(data.commissions);
+// View all commissions (Admin only)
+app.get('/api/admin/commissions', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM commissions ORDER BY created_at DESC'
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get all commissions error:', error);
+    res.status(500).json({ error: 'Failed to get commissions' });
+  }
 });
 
-app.put('/api/admin/commissions/:id', requireAdmin, (req, res) => {
+// Update commission status (Admin only)
+app.put('/api/admin/commissions/:id', requireAdmin, async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
 
-  const data = db.read();
-  const index = data.commissions.findIndex(c => c.id === id);
+  try {
+    await pool.query(
+      'UPDATE commissions SET status = $1 WHERE id = $2',
+      [status, id]
+    );
 
-  if (index === -1) {
-    return res.status(404).json({ error: 'Commission request not found' });
+    const result = await pool.query('SELECT * FROM commissions WHERE id = $1', [id]);
+    res.json({ message: 'Commission status updated successfully!', commission: result.rows[0] });
+  } catch (error) {
+    console.error('Update commission error:', error);
+    res.status(500).json({ error: 'Failed to update commission status' });
   }
-
-  data.commissions[index].status = status;
-  db.write(data);
-  res.json({ message: 'Commission status updated successfully!', commission: data.commissions[index] });
 });
 
 // Start the server
@@ -460,6 +517,6 @@ app.listen(PORT, () => {
   console.log(`👤 Admin: tevinmuthengia@gmail.com (pwd: Muthengia2040#)`);
   console.log(`👤 Owner: thecommonmass@gmail.com (pwd: Tesh@2026)`);
   console.log(`📸 Images stored in Cloudinary (persistent!)`);
-  console.log(`⚡ Max file size: 50MB`);
+  console.log(`🗄️ Database: Supabase PostgreSQL (permanent storage!)`);
   console.log(`============================================`);
 });
