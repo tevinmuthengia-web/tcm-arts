@@ -1,3 +1,4 @@
+// frontend/src/pages/FineArts.jsx
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../App';
 import { api } from '../utils/api';
@@ -7,7 +8,8 @@ export default function FineArts() {
   const { siteContent, user, setShowAuthModal, setAuthModalTab, showToast } = useApp();
   const [gallery, setGallery] = useState([]);
   const [classes, setClasses] = useState([]);
-  
+  const [isLoading, setIsLoading] = useState(true); // Add loading state
+
   // Commission Form State
   const [medium, setMedium] = useState('Oil on Canvas');
   const [size, setSize] = useState('16x20 inches');
@@ -16,17 +18,20 @@ export default function FineArts() {
   const [submittingCommission, setSubmittingCommission] = useState(false);
 
   const fetchArtData = async () => {
+    setIsLoading(true);
     try {
+      console.log("Fetching gallery data...");
       const art = await api.gallery.get();
-      // Filter out any items with missing imageUrl to prevent errors
-      const validArt = art.filter(item => item.imageUrl !== undefined && item.imageUrl !== null);
-      setGallery(validArt);
+      console.log("Raw gallery data received:", art); // LOG THE DATA
+      setGallery(art);
       
       const allClasses = await api.classes.get();
-      // Filter only fine arts classes
       setClasses(allClasses.filter(c => c.category === 'fine-arts'));
     } catch (err) {
       console.error("Failed to load fine arts details:", err);
+      showToast("Error loading gallery. Please refresh.", "error");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -34,6 +39,7 @@ export default function FineArts() {
     fetchArtData();
   }, []);
 
+  // --- All your other handlers (handleBookClass, handleCommissionSubmit) remain EXACTLY the same ---
   const handleBookClass = async (classId, classTitle) => {
     if (!user) {
       setAuthModalTab('login');
@@ -71,12 +77,24 @@ export default function FineArts() {
       setSubmittingCommission(false);
     }
   };
+  // --- End of handlers ---
 
   const pageTexts = siteContent?.fineArts || {
     title: "Fine Arts Studio",
     description: "Unleash your creativity and master visual expression. From classical commissions to contemporary classes, explore art in its purest forms.",
     classesIntro: "We offer professional, structured fine arts classes across a wide range of mediums including Pencil & Pen sketching, Oil paints, Acrylics, Watercolors, and Oil Pastels."
   };
+
+  // Display loading state
+  if (isLoading) {
+    return (
+      <div className="animate-fade-in" style={{ padding: '40px 0 80px 0', textAlign: 'center' }}>
+        <div className="container">
+          <p>Loading Gallery...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in" style={{ padding: '40px 0 80px 0' }}>
@@ -112,116 +130,114 @@ export default function FineArts() {
           </h2>
           
           <div className="grid-3">
-            {gallery.map(art => (
-              <div 
-                key={art.id} 
-                className="glass-card glow-art"
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  height: '100%',
-                  padding: '16px'
-                }}
-              >
-                {/* Image Wrap - FIXED: Added safety check for undefined imageUrl */}
-                <div style={{
-                  position: 'relative',
-                  width: '100%',
-                  height: '240px',
-                  borderRadius: '14px',
-                  overflow: 'hidden',
-                  marginBottom: '16px',
-                  backgroundColor: 'rgba(0,0,0,0.2)'
-                }}>
-                  {art.imageUrl ? (
-                    <img 
-                      src={art.imageUrl && art.imageUrl.startsWith('/uploads') ? art.imageUrl : art.imageUrl} 
-                      alt={art.title}
-                      style={{
+            {gallery.length === 0 ? (
+              <p>No artwork available in this gallery yet. Check back soon for new pieces.</p>
+            ) : (
+              gallery.map(art => (
+                <div 
+                  key={art.id} 
+                  className="glass-card glow-art"
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    height: '100%',
+                    padding: '16px'
+                  }}
+                >
+                  {/* Image Wrap */}
+                  <div style={{
+                    position: 'relative',
+                    width: '100%',
+                    height: '240px',
+                    borderRadius: '14px',
+                    overflow: 'hidden',
+                    marginBottom: '16px',
+                    backgroundColor: 'rgba(0,0,0,0.2)'
+                  }}>
+                    {art.image_url ? (
+                      <img 
+                        src={art.image_url.startsWith('/uploads') ? art.image_url : art.image_url} 
+                        alt={art.title}
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover'
+                        }}
+                        onError={(e) => { e.target.style.display = 'none'; e.target.parentElement.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;">Image failed to load</div>'; }}
+                      />
+                    ) : (
+                      <div style={{
                         width: '100%',
                         height: '100%',
-                        objectFit: 'cover'
-                      }}
-                    />
-                  ) : (
-                    <div style={{
-                      width: '100%',
-                      height: '100%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      backgroundColor: 'rgba(255,255,255,0.05)',
-                      color: 'var(--text-muted)'
-                    }}>
-                      No Image Available
-                    </div>
-                  )}
-                  {art.isSold && (
-                    <div style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      width: '100%',
-                      height: '100%',
-                      background: 'rgba(0,0,0,0.65)',
-                      backdropFilter: 'blur(2px)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#d4af37',
-                      fontFamily: 'var(--font-heading)',
-                      fontWeight: 800,
-                      fontSize: '1.4rem',
-                      letterSpacing: '0.1em'
-                    }}>
-                      SOLD
-                    </div>
-                  )}
-                </div>
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: 'rgba(255,255,255,0.05)',
+                        color: 'var(--text-muted)'
+                      }}>
+                        No Image Available
+                      </div>
+                    )}
+                    {art.is_sold && (
+                      <div style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        background: 'rgba(0,0,0,0.65)',
+                        backdropFilter: 'blur(2px)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#d4af37',
+                        fontFamily: 'var(--font-heading)',
+                        fontWeight: 800,
+                        fontSize: '1.4rem',
+                        letterSpacing: '0.1em'
+                      }}>
+                        SOLD
+                      </div>
+                    )}
+                  </div>
 
-                {/* Details */}
-                <h3 style={{ fontSize: '1.2rem', fontFamily: 'var(--font-heading)', color: '#fff', marginBottom: '6px' }}>{art.title}</h3>
-                <span className="badge badge-art" style={{ width: 'fit-content', marginBottom: '12px' }}>{art.medium}</span>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', flexGrow: 1, marginBottom: '16px' }}>{art.description}</p>
-                
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginTop: 'auto',
-                  borderTop: '1px solid var(--border-color)',
-                  paddingTop: '12px'
-                }}>
-                  <span style={{ fontFamily: 'var(--font-heading)', fontSize: '1.25rem', fontWeight: 700, color: '#fff' }}>
-                    Ksh {art.price?.toLocaleString() || '0'}
-                  </span>
-                  {!art.isSold ? (
-                    <button 
-                      onClick={() => showToast(`Simulated acquiring: "${art.title}"! We have received your purchase intent.`)}
-                      className="btn btn-gold" 
-                      style={{ padding: '8px 16px', fontSize: '0.85rem' }}
-                    >
-                      <ShoppingBag size={14} /> Buy Piece
-                    </button>
-                  ) : (
-                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Private Collection</span>
-                  )}
+                  {/* Details */}
+                  <h3 style={{ fontSize: '1.2rem', fontFamily: 'var(--font-heading)', color: '#fff', marginBottom: '6px' }}>{art.title}</h3>
+                  <span className="badge badge-art" style={{ width: 'fit-content', marginBottom: '12px' }}>{art.medium}</span>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', flexGrow: 1, marginBottom: '16px' }}>{art.description}</p>
+                  
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginTop: 'auto',
+                    borderTop: '1px solid var(--border-color)',
+                    paddingTop: '12px'
+                  }}>
+                    <span style={{ fontFamily: 'var(--font-heading)', fontSize: '1.25rem', fontWeight: 700, color: '#fff' }}>
+                      Ksh {parseFloat(art.price).toLocaleString()}
+                    </span>
+                    {!art.is_sold ? (
+                      <button 
+                        onClick={() => showToast(`Simulated acquiring: "${art.title}"! We have received your purchase intent.`)}
+                        className="btn btn-gold" 
+                        style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+                      >
+                        <ShoppingBag size={14} /> Buy Piece
+                      </button>
+                    ) : (
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Private Collection</span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
-          
-          {/* Show message if gallery is empty */}
-          {gallery.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
-              <p>No artwork available in the gallery yet.</p>
-              <p style={{ fontSize: '0.85rem', marginTop: '8px' }}>Check back soon for new pieces!</p>
-            </div>
-          )}
         </div>
       </section>
 
       {/* 3. CLASSES */}
+      {/* ... rest of your component remains the same ... */}
       <section style={{ marginBottom: '80px', backgroundColor: 'rgba(255,255,255,0.01)', padding: '60px 0', borderTop: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)' }}>
         <div className="container">
           <h2 style={{ fontSize: '1.8rem', fontFamily: 'var(--font-heading)', marginBottom: '12px' }}>
