@@ -1,277 +1,343 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../App';
-import { api } from '../utils/api';
-import { Crown, BookOpen, Trophy, Shield, Calendar, Award } from 'lucide-react';
+import { Calendar, Clock, Users, Award, ChevronRight, Brain, Target, BookOpen } from 'lucide-react';
 
 export default function Chess() {
-  const { siteContent, user, setShowAuthModal, setAuthModalTab, showToast } = useApp();
+  const { siteContent } = useApp();
+  const [selectedClass, setSelectedClass] = useState(null);
+  const [showBooking, setShowBooking] = useState(false);
   const [classes, setClasses] = useState([]);
 
-  const fetchChessData = async () => {
-    try {
-      const allClasses = await api.classes.get();
-      // Filter chess category
-      setClasses(allClasses.filter(c => c.category === 'chess'));
-    } catch (err) {
-      console.error("Failed to load chess details:", err);
-    }
-  };
-
   useEffect(() => {
-    fetchChessData();
+    fetchClasses();
   }, []);
 
-  const handleBookClass = async (classId, classTitle) => {
-    if (!user) {
-      setAuthModalTab('login');
-      setShowAuthModal(true);
-      showToast("Please register or login to book chess training.", "error");
-      return;
-    }
-
+  const fetchClasses = async () => {
     try {
-      await api.bookings.create(classId);
-      showToast(`Successfully registered for ${classTitle}! Check your dashboard.`);
-    } catch (err) {
-      showToast(err.message || "Failed to book class.", "error");
+      const response = await fetch('/api/classes');
+      const data = await response.json();
+      const chessClasses = data.filter(c => c.category === 'chess');
+      setClasses(chessClasses);
+    } catch (error) {
+      console.error('Error fetching classes:', error);
     }
   };
 
-  const pageTexts = siteContent?.chess || {
-    title: "Chess & Mind Sports",
-    description: "Sharpen your intellect, enhance strategic thinking, and build focus. Join our chess community for private tutoring and casual or competitive board gaming.",
-    tutoringIntro: "From mastering opening theories to endgame strategies, our personalized 1-on-1 tutoring sessions cater to beginners, intermediate players, and advanced competitors."
+  const content = siteContent?.chess || {
+    title: 'Cognitive Growth Through Play',
+    description: 'Chess is more than a game—it\'s a cerebral framework. By anticipating your opponent\'s moves, checking geometric board balances, and devising tactics, you train pattern recognition, working memory capacity, and mental discipline.',
+    casualPrice: 4000,
+    proPrice: 10000
   };
 
   return (
-    <div className="animate-fade-in" style={{ padding: '40px 0 80px 0' }}>
-      
-      {/* 1. HEADER */}
-      <section style={{ marginBottom: '60px', textAlign: 'center' }}>
-        <div className="container">
-          <div style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '6px 12px',
-            borderRadius: '20px',
-            background: 'rgba(16,185,129,0.08)',
-            border: '1px solid rgba(16,185,129,0.2)',
-            marginBottom: '16px'
+    <div className="chess-page animate-fade-in" style={{ 
+      padding: '40px 0 80px 0',
+      overflowX: 'hidden',
+      maxWidth: '100%'
+    }}>
+      <div className="container" style={{ 
+        maxWidth: '1280px', 
+        margin: '0 auto', 
+        padding: '0 20px',
+        overflowX: 'hidden'
+      }}>
+        
+        {/* Hero Section */}
+        <div style={{ 
+          textAlign: 'center', 
+          marginBottom: '60px',
+          padding: '0 16px'
+        }}>
+          <h1 style={{ 
+            fontSize: 'clamp(1.8rem, 6vw, 3rem)',
+            fontFamily: 'var(--font-heading)',
+            marginBottom: '20px'
           }}>
-            <Crown size={14} color="#10b981" />
-            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Intellectual agility & concentration</span>
-          </div>
-          <h1 style={{ fontSize: '3rem', fontFamily: 'var(--font-heading)', marginBottom: '16px' }}>{pageTexts.title}</h1>
-          <p style={{ color: 'var(--text-secondary)', maxWidth: '700px', margin: '0 auto', fontSize: '1.05rem' }}>
-            {pageTexts.description}
+            {content.title}
+          </h1>
+          <p style={{ 
+            fontSize: 'clamp(0.9rem, 4vw, 1.1rem)',
+            color: 'var(--text-secondary)',
+            maxWidth: '800px',
+            margin: '0 auto',
+            lineHeight: 1.6,
+            wordWrap: 'break-word',
+            overflowWrap: 'break-word',
+            whiteSpace: 'normal'
+          }}>
+            {content.description}
           </p>
         </div>
-      </section>
 
-      {/* 2. CHESS PHILOSOPHY & CLUBS */}
-      <section style={{ marginBottom: '80px' }}>
-        <div className="container">
-          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '40px' }} className="grid-2">
-            
-            {/* Tutoring Description */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', justifyContent: 'center' }}>
-              <h3 style={{ fontSize: '1.8rem', fontFamily: 'var(--font-heading)', color: '#fff' }}>
-                Cognitive Growth Through Play
-              </h3>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '1rem', lineHeight: '1.7' }}>
-                Chess is more than a game—it's a cerebral framework. By anticipating your opponent's moves, checking geometric board balances, and devising tactics, you train pattern recognition, working memory capacity, and mental discipline.
+        {/* Feature Grid */}
+        <div style={{ 
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: '24px',
+          marginBottom: '60px'
+        }}>
+          {[
+            { icon: <Brain size={32} />, title: 'Theory & Tactics', desc: 'Master opening principles, middlegame strategies, and endgame techniques' },
+            { icon: <Target size={32} />, title: 'Tournament Prep', desc: 'Prepare for rated tournaments with expert guidance' },
+            { icon: <BookOpen size={32} />, title: 'Bespoke Analysis', desc: 'Personalized game analysis and improvement plans' },
+            { icon: <Users size={32} />, title: 'All Skill Levels', desc: 'From beginners to advanced competitors' }
+          ].map((feature, index) => (
+            <div key={index} className="glass-card glow-chess" style={{ textAlign: 'center', padding: '24px' }}>
+              <div style={{ color: 'var(--emerald)', marginBottom: '16px' }}>{feature.icon}</div>
+              <h3 style={{ fontSize: 'clamp(1rem, 4vw, 1.2rem)', marginBottom: '8px' }}>{feature.title}</h3>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', wordWrap: 'break-word' }}>
+                {feature.desc}
               </p>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '1rem', lineHeight: '1.7' }}>
-                {pageTexts.tutoringIntro}
-              </p>
-              
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginTop: '10px' }} className="grid-2">
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                  <div style={{ padding: '6px', borderRadius: '8px', background: 'rgba(16,185,129,0.1)', color: '#10b981' }}><BookOpen size={16} /></div>
-                  <span style={{ fontSize: '0.9rem', color: '#fff', fontWeight: 500 }}>Theory & Tactics</span>
-                </div>
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                  <div style={{ padding: '6px', borderRadius: '8px', background: 'rgba(16,185,129,0.1)', color: '#10b981' }}><Trophy size={16} /></div>
-                  <span style={{ fontSize: '0.9rem', color: '#fff', fontWeight: 500 }}>Tournament Prep</span>
-                </div>
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                  <div style={{ padding: '6px', borderRadius: '8px', background: 'rgba(16,185,129,0.1)', color: '#10b981' }}><Shield size={16} /></div>
-                  <span style={{ fontSize: '0.9rem', color: '#fff', fontWeight: 500 }}>Bespoke Analysis</span>
-                </div>
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                  <div style={{ padding: '6px', borderRadius: '8px', background: 'rgba(16,185,129,0.1)', color: '#10b981' }}><Award size={16} /></div>
-                  <span style={{ fontSize: '0.9rem', color: '#fff', fontWeight: 500 }}>All Skill Levels</span>
-                </div>
-              </div>
             </div>
-
-            {/* Visual Board Game Frame */}
-            <div 
-              className="glass-card glow-chess"
-              style={{
-                backgroundImage: 'linear-gradient(rgba(10,10,12,0.85), rgba(10,10,12,0.95)), url("https://images.unsplash.com/photo-1529699211952-734e80c4d42b?q=80&w=800")',
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-                minHeight: '350px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '40px',
-                textAlign: 'center'
-              }}
-            >
-              <div>
-                <div style={{
-                  width: '56px',
-                  height: '56px',
-                  borderRadius: '16px',
-                  background: 'rgba(16,185,129,0.1)',
-                  border: '1px solid rgba(16,185,129,0.3)',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  marginBottom: '20px'
-                }}>
-                  <Crown size={26} color="#10b981" />
-                </div>
-                <h4 style={{ color: '#fff', fontSize: '1.4rem', fontFamily: 'var(--font-heading)', marginBottom: '12px' }}>
-                  Weekly Club Tournaments
-                </h4>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', maxWidth: '300px', margin: '0 auto 20px auto' }}>
-                  Join us every Friday evening for blitz matches, rapid evaluations, and social analytics over tea.
-                </p>
-                <button 
-                  onClick={() => showToast("Simulated Registration: Registered for the Friday Blitz Arena!")}
-                  className="btn btn-emerald" 
-                  style={{ padding: '10px 20px', fontSize: '0.9rem' }}
-                >
-                  Join Friday Blitz
-                </button>
-              </div>
-            </div>
-
-          </div>
+          ))}
         </div>
-      </section>
 
-      {/* 3. COURSES SCHEDULE */}
-      <section style={{ marginBottom: '80px', backgroundColor: 'rgba(255,255,255,0.01)', padding: '60px 0', borderTop: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)' }}>
-        <div className="container">
-          <h2 style={{ fontSize: '1.8rem', fontFamily: 'var(--font-heading)', marginBottom: '12px' }}>
-            📚 Chess Tutoring & Classes
+        {/* Classes Section */}
+        <div style={{ marginBottom: '60px' }}>
+          <h2 style={{ 
+            fontSize: 'clamp(1.5rem, 5vw, 2rem)',
+            textAlign: 'center',
+            marginBottom: '40px'
+          }}>
+            Training Sessions
           </h2>
-          <p style={{ color: 'var(--text-secondary)', marginBottom: '30px', maxWidth: '700px' }}>
-            Personalized learning blocks and active workshops. Secure your slot dynamically.
-          </p>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {classes.map(c => (
-              <div 
-                key={c.id} 
-                className="glass-card glow-chess" 
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  gap: '20px',
-                  flexWrap: 'wrap'
-                }}
-              >
-                <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-                  <div style={{
-                    width: '44px',
-                    height: '44px',
-                    borderRadius: '10px',
-                    backgroundColor: 'rgba(16,185,129,0.1)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}>
-                    <Crown size={20} color="#10b981" />
-                  </div>
-                  <div>
-                    <h3 style={{ fontSize: '1.15rem', color: '#fff' }}>{c.title}</h3>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{c.description}</p>
-                  </div>
+          <div style={{ 
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gap: '24px'
+          }}>
+            {classes.map(classItem => (
+              <div key={classItem.id} className="glass-card glow-chess" style={{ padding: '24px' }}>
+                <h3 style={{ fontSize: 'clamp(1rem, 4vw, 1.2rem)', marginBottom: '12px' }}>
+                  {classItem.title}
+                </h3>
+                <p style={{ 
+                  fontSize: '0.9rem', 
+                  color: 'var(--text-secondary)',
+                  marginBottom: '16px',
+                  wordWrap: 'break-word',
+                  lineHeight: 1.5
+                }}>
+                  {classItem.description}
+                </p>
+                <div style={{ marginBottom: '16px' }}>
+                  <span style={{ color: 'var(--gold)', fontSize: '0.85rem' }}>
+                    <Calendar size={14} style={{ display: 'inline', marginRight: '8px' }} />
+                    {classItem.schedule}
+                  </span>
                 </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '30px', flexWrap: 'wrap' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                    <Calendar size={16} />
-                    <span>{c.schedule}</span>
-                  </div>
-                  <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#fff' }}>
-                    Ksh {c.price.toLocaleString()} <span style={{ fontSize: '0.8rem', fontWeight: 400, color: 'var(--text-muted)' }}>/ slot</span>
-                  </div>
+                <div style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '12px'
+                }}>
+                  <span style={{ fontSize: '1.25rem', fontWeight: 'bold', color: 'var(--gold)' }}>
+                    Ksh {classItem.price.toLocaleString()}
+                  </span>
                   <button 
-                    onClick={() => handleBookClass(c.id, c.title)}
+                    onClick={() => {
+                      setSelectedClass(classItem);
+                      setShowBooking(true);
+                    }}
                     className="btn btn-emerald"
-                    style={{ padding: '8px 16px', fontSize: '0.9rem' }}
+                    style={{ padding: '8px 16px', fontSize: '0.85rem' }}
                   >
-                    Enroll Class
+                    Book Now <ChevronRight size={14} />
                   </button>
                 </div>
               </div>
             ))}
-            {classes.length === 0 && (
-              <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                No active chess classes available. Check back soon!
-              </div>
-            )}
           </div>
         </div>
-      </section>
 
-      {/* 4. CLUB MEMBERSHIP */}
-      <section>
-        <div className="container">
-          <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-            <h2 style={{ fontSize: '1.8rem', fontFamily: 'var(--font-heading)' }}>Chess Club Membership</h2>
-            <p style={{ color: 'var(--text-secondary)' }}>Get standard access to boards, chess clocks, and ranking evaluations.</p>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', maxWidth: '800px', margin: '0 auto' }} className="grid-2">
-            {/* Casual Board Membership */}
-            <div className="glass-card" style={{ padding: '30px', display: 'flex', flexDirection: 'column', gap: '16px', border: '1px solid var(--border-color)' }}>
-              <h3 style={{ fontSize: '1.2rem', fontFamily: 'var(--font-heading)', color: '#fff' }}>Casual Player</h3>
-              <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#fff' }}>
-                Ksh {pageTexts.casualPrice ? Number(pageTexts.casualPrice).toLocaleString() : '4,000'} <span style={{ fontSize: '0.9rem', fontWeight: 400, color: 'var(--text-muted)' }}>/ year</span>
+        {/* Membership Options */}
+        <div className="glass-card glow-chess" style={{ 
+          padding: 'clamp(24px, 5vw, 40px)',
+          marginTop: '40px'
+        }}>
+          <h2 style={{ 
+            fontSize: 'clamp(1.3rem, 5vw, 1.8rem)',
+            textAlign: 'center',
+            marginBottom: '32px'
+          }}>
+            Membership Plans
+          </h2>
+          <div style={{ 
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+            gap: '32px',
+            textAlign: 'center'
+          }}>
+            <div>
+              <h3 style={{ fontSize: 'clamp(1.1rem, 4vw, 1.3rem)' }}>Player</h3>
+              <div style={{ margin: '20px 0' }}>
+                <span style={{ fontSize: 'clamp(2rem, 6vw, 2.5rem)', fontWeight: 'bold', color: 'var(--gold)' }}>
+                  Ksh {content.casualPrice?.toLocaleString() || '4,000'}
+                </span>
+                <span style={{ color: 'var(--text-secondary)' }}> / year</span>
               </div>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', flexGrow: 1 }}>
-                Access to casual boards and clocks inside our gaming space on weekdays. Discounted tea and coffee, and invitations to open blitz nights.
-              </p>
-              <button 
-                onClick={() => showToast("Simulated Casual Sign-up: Registered for the Casual Club Membership!")}
-                className="btn btn-secondary" 
-                style={{ width: '100%', padding: '10px' }}
-              >
-                Join Casual Club
-              </button>
+              <ul style={{ 
+                listStyle: 'none', 
+                padding: 0,
+                textAlign: 'left',
+                maxWidth: '280px',
+                margin: '0 auto'
+              }}>
+                <li style={{ 
+                  marginBottom: '12px', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '8px',
+                  wordWrap: 'break-word'
+                }}>
+                  <Award size={16} color="var(--emerald)" /> Access to casual boards and clocks
+                </li>
+                <li style={{ 
+                  marginBottom: '12px', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '8px',
+                  wordWrap: 'break-word'
+                }}>
+                  <Clock size={16} color="var(--emerald)" /> Weekday access
+                </li>
+                <li style={{ 
+                  marginBottom: '12px', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '8px',
+                  wordWrap: 'break-word'
+                }}>
+                  <Users size={16} color="var(--emerald)" /> Open blitz nights
+                </li>
+              </ul>
             </div>
-
-            {/* Competitive Pro Membership */}
-            <div className="glass-card" style={{ padding: '30px', display: 'flex', flexDirection: 'column', gap: '16px', border: '2px solid var(--color-chess)' }}>
-              <div className="badge badge-chess" style={{ alignSelf: 'flex-start' }}>Highly Strategic</div>
-              <h3 style={{ fontSize: '1.2rem', fontFamily: 'var(--font-heading)', color: '#fff' }}>Pro Competitor</h3>
-              <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#fff' }}>
-                Ksh {pageTexts.proPrice ? Number(pageTexts.proPrice).toLocaleString() : '10,000'} <span style={{ fontSize: '0.9rem', fontWeight: 400, color: 'var(--text-muted)' }}>/ year</span>
+            
+            <div>
+              <h3 style={{ fontSize: 'clamp(1.1rem, 4vw, 1.3rem)' }}>Pro Competitor</h3>
+              <div style={{ margin: '20px 0' }}>
+                <span style={{ fontSize: 'clamp(2rem, 6vw, 2.5rem)', fontWeight: 'bold', color: 'var(--gold)' }}>
+                  Ksh {content.proPrice?.toLocaleString() || '10,000'}
+                </span>
+                <span style={{ color: 'var(--text-secondary)' }}> / year</span>
               </div>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', flexGrow: 1 }}>
-                Full access to all boards, speed chess clocks, official rated rankings tournaments, 20% discount on 1-on-1 private grandmaster masterclass scheduling.
-              </p>
-              <button 
-                onClick={() => showToast("Simulated Pro Sign-up: Registered for the Pro Competitor Membership!")}
-                className="btn btn-emerald" 
-                style={{ width: '100%', padding: '10px' }}
-              >
-                Go Pro Competitive
-              </button>
+              <ul style={{ 
+                listStyle: 'none', 
+                padding: 0,
+                textAlign: 'left',
+                maxWidth: '280px',
+                margin: '0 auto'
+              }}>
+                <li style={{ 
+                  marginBottom: '12px', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '8px',
+                  wordWrap: 'break-word'
+                }}>
+                  <Award size={16} color="var(--emerald)" /> Full access to all boards and clocks
+                </li>
+                <li style={{ 
+                  marginBottom: '12px', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '8px',
+                  wordWrap: 'break-word'
+                }}>
+                  <Target size={16} color="var(--emerald)" /> Official rated rankings tournaments
+                </li>
+                <li style={{ 
+                  marginBottom: '12px', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '8px',
+                  wordWrap: 'break-word'
+                }}>
+                  <BookOpen size={16} color="var(--emerald)" /> 20% discount on private masterclasses
+                </li>
+              </ul>
             </div>
           </div>
         </div>
-      </section>
+      </div>
 
+      {/* Booking Modal */}
+      {showBooking && selectedClass && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.9)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px'
+        }} onClick={() => setShowBooking(false)}>
+          <div style={{
+            background: 'var(--bg-secondary)',
+            borderRadius: '24px',
+            padding: 'clamp(24px, 5vw, 40px)',
+            maxWidth: '500px',
+            width: '100%',
+            maxHeight: '90vh',
+            overflowY: 'auto'
+          }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ fontSize: 'clamp(1.2rem, 5vw, 1.5rem)', marginBottom: '20px' }}>
+              Book {selectedClass.title}
+            </h3>
+            <p style={{ marginBottom: '24px', color: 'var(--text-secondary)' }}>
+              Schedule: {selectedClass.schedule}
+            </p>
+            <button 
+              className="btn btn-gold"
+              style={{ width: '100%', marginBottom: '12px' }}
+              onClick={async () => {
+                try {
+                  const token = localStorage.getItem('token');
+                  if (!token) {
+                    alert('Please log in to book a class');
+                    setShowBooking(false);
+                    return;
+                  }
+                  const response = await fetch('/api/bookings', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ classId: selectedClass.id })
+                  });
+                  if (response.ok) {
+                    alert('Class booked successfully!');
+                    setShowBooking(false);
+                  } else {
+                    const error = await response.json();
+                    alert(error.error || 'Booking failed');
+                  }
+                } catch (error) {
+                  console.error('Booking error:', error);
+                  alert('Failed to book class');
+                }
+              }}
+            >
+              Confirm Booking
+            </button>
+            <button 
+              className="btn btn-secondary"
+              style={{ width: '100%' }}
+              onClick={() => setShowBooking(false)}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
