@@ -18,7 +18,9 @@ export default function FineArts() {
   const fetchArtData = async () => {
     try {
       const art = await api.gallery.get();
-      setGallery(art);
+      // Filter out any items with missing imageUrl to prevent errors
+      const validArt = art.filter(item => item.imageUrl !== undefined && item.imageUrl !== null);
+      setGallery(validArt);
       
       const allClasses = await api.classes.get();
       // Filter only fine arts classes
@@ -121,7 +123,7 @@ export default function FineArts() {
                   padding: '16px'
                 }}
               >
-                {/* Image Wrap */}
+                {/* Image Wrap - FIXED: Added safety check for undefined imageUrl */}
                 <div style={{
                   position: 'relative',
                   width: '100%',
@@ -131,15 +133,29 @@ export default function FineArts() {
                   marginBottom: '16px',
                   backgroundColor: 'rgba(0,0,0,0.2)'
                 }}>
-                  <img 
-                    src={art.imageUrl.startsWith('/uploads') ? art.imageUrl : art.imageUrl} 
-                    alt={art.title}
-                    style={{
+                  {art.imageUrl ? (
+                    <img 
+                      src={art.imageUrl && art.imageUrl.startsWith('/uploads') ? art.imageUrl : art.imageUrl} 
+                      alt={art.title}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover'
+                      }}
+                    />
+                  ) : (
+                    <div style={{
                       width: '100%',
                       height: '100%',
-                      objectFit: 'cover'
-                    }}
-                  />
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: 'rgba(255,255,255,0.05)',
+                      color: 'var(--text-muted)'
+                    }}>
+                      No Image Available
+                    </div>
+                  )}
                   {art.isSold && (
                     <div style={{
                       position: 'absolute',
@@ -177,7 +193,7 @@ export default function FineArts() {
                   paddingTop: '12px'
                 }}>
                   <span style={{ fontFamily: 'var(--font-heading)', fontSize: '1.25rem', fontWeight: 700, color: '#fff' }}>
-                    Ksh {art.price.toLocaleString()}
+                    Ksh {art.price?.toLocaleString() || '0'}
                   </span>
                   {!art.isSold ? (
                     <button 
@@ -194,6 +210,14 @@ export default function FineArts() {
               </div>
             ))}
           </div>
+          
+          {/* Show message if gallery is empty */}
+          {gallery.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
+              <p>No artwork available in the gallery yet.</p>
+              <p style={{ fontSize: '0.85rem', marginTop: '8px' }}>Check back soon for new pieces!</p>
+            </div>
+          )}
         </div>
       </section>
 
@@ -208,54 +232,61 @@ export default function FineArts() {
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {classes.map(c => (
-              <div 
-                key={c.id} 
-                className="glass-card" 
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  gap: '20px',
-                  flexWrap: 'wrap'
-                }}
-              >
-                <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-                  <div style={{
-                    width: '44px',
-                    height: '44px',
-                    borderRadius: '10px',
-                    backgroundColor: 'rgba(212,175,55,0.1)',
+            {classes.length > 0 ? (
+              classes.map(c => (
+                <div 
+                  key={c.id} 
+                  className="glass-card" 
+                  style={{
                     display: 'flex',
+                    justifyContent: 'space-between',
                     alignItems: 'center',
-                    justifyContent: 'center'
-                  }}>
-                    <Palette size={20} color="#d4af37" />
+                    gap: '20px',
+                    flexWrap: 'wrap'
+                  }}
+                >
+                  <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                    <div style={{
+                      width: '44px',
+                      height: '44px',
+                      borderRadius: '10px',
+                      backgroundColor: 'rgba(212,175,55,0.1)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      <Palette size={20} color="#d4af37" />
+                    </div>
+                    <div>
+                      <h3 style={{ fontSize: '1.15rem', color: '#fff' }}>{c.title}</h3>
+                      <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{c.description}</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 style={{ fontSize: '1.15rem', color: '#fff' }}>{c.title}</h3>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{c.description}</p>
-                  </div>
-                </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '30px', flexWrap: 'wrap' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                    <Calendar size={16} />
-                    <span>{c.schedule}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '30px', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                      <Calendar size={16} />
+                      <span>{c.schedule}</span>
+                    </div>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#fff' }}>
+                      Ksh {c.price?.toLocaleString() || '0'} <span style={{ fontSize: '0.8rem', fontWeight: 400, color: 'var(--text-muted)' }}>/ class</span>
+                    </div>
+                    <button 
+                      onClick={() => handleBookClass(c.id, c.title)}
+                      className="btn btn-gold"
+                      style={{ padding: '8px 16px', fontSize: '0.9rem' }}
+                    >
+                      Book Spot
+                    </button>
                   </div>
-                  <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#fff' }}>
-                    Ksh {c.price.toLocaleString()} <span style={{ fontSize: '0.8rem', fontWeight: 400, color: 'var(--text-muted)' }}>/ class</span>
-                  </div>
-                  <button 
-                    onClick={() => handleBookClass(c.id, c.title)}
-                    className="btn btn-gold"
-                    style={{ padding: '8px 16px', fontSize: '0.9rem' }}
-                  >
-                    Book Spot
-                  </button>
                 </div>
+              ))
+            ) : (
+              <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                <p>No classes available at the moment.</p>
+                <p style={{ fontSize: '0.85rem', marginTop: '8px' }}>Check back soon for upcoming sessions!</p>
               </div>
-            ))}
+            )}
           </div>
         </div>
       </section>
