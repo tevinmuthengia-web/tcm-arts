@@ -10,6 +10,9 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [resetMessage, setResetMessage] = useState('');
+  const [resetError, setResetError] = useState('');
 
   if (!isOpen) return null;
 
@@ -45,6 +48,153 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
     }
   };
 
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setResetMessage('');
+    setResetError('');
+
+    try {
+      const response = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        setResetMessage(data.message || 'If an account exists, a reset link has been sent. Check the server logs for the link.');
+        setTimeout(() => {
+          setIsForgotPassword(false);
+          setResetMessage('');
+          setEmail('');
+        }, 5000);
+      } else {
+        setResetError(data.error || 'Something went wrong');
+      }
+    } catch (err) {
+      setResetError('Network error. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Forgot Password View
+  if (isForgotPassword) {
+    return (
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: 'rgba(0,0,0,0.9)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 2000,
+        backdropFilter: 'blur(8px)'
+      }} onClick={onClose}>
+        <div style={{
+          background: 'var(--bg-secondary)',
+          borderRadius: '24px',
+          padding: '32px',
+          maxWidth: '450px',
+          width: '90%',
+          position: 'relative',
+          border: '1px solid var(--border-color)'
+        }} onClick={e => e.stopPropagation()}>
+          
+          <button onClick={() => {
+            setIsForgotPassword(false);
+            setResetMessage('');
+            setResetError('');
+          }} style={{
+            position: 'absolute',
+            top: '20px',
+            right: '20px',
+            background: 'none',
+            border: 'none',
+            color: 'var(--text-secondary)',
+            cursor: 'pointer'
+          }}>
+            <X size={24} />
+          </button>
+
+          <h2 style={{ fontSize: '1.5rem', marginBottom: '8px' }}>Forgot Password?</h2>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: '24px', fontSize: '0.9rem' }}>
+            Enter your email address and we'll send you a link to reset your password.
+          </p>
+
+          {resetMessage && (
+            <div style={{ 
+              background: 'rgba(16,185,129,0.1)', 
+              border: '1px solid #10b981', 
+              borderRadius: '8px', 
+              padding: '12px', 
+              marginBottom: '20px',
+              color: '#10b981',
+              fontSize: '0.85rem'
+            }}>
+              {resetMessage}
+            </div>
+          )}
+
+          {resetError && (
+            <div style={{ 
+              background: 'rgba(244,63,94,0.1)', 
+              border: '1px solid #f43f5e', 
+              borderRadius: '8px', 
+              padding: '12px', 
+              marginBottom: '20px',
+              color: '#f43f5e',
+              fontSize: '0.85rem'
+            }}>
+              {resetError}
+            </div>
+          )}
+
+          <form onSubmit={handleForgotPassword}>
+            <div className="form-group">
+              <label className="form-label">Email Address</label>
+              <input
+                type="email"
+                className="form-control"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
+
+            <button 
+              type="submit" 
+              className="btn btn-gold" 
+              style={{ width: '100%' }}
+              disabled={loading}
+            >
+              {loading ? 'Sending...' : 'Send Reset Link'}
+            </button>
+
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ width: '100%', marginTop: '12px' }}
+              onClick={() => {
+                setIsForgotPassword(false);
+                setResetMessage('');
+                setResetError('');
+              }}
+            >
+              Back to Login
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // Login/Register View
   return (
     <div style={{
       position: 'fixed',
@@ -139,9 +289,20 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
               />
             </div>
             <div style={{ textAlign: 'right', marginTop: '8px', marginBottom: '16px' }}>
-              <a href="/forgot-password" style={{ color: 'var(--gold)', fontSize: '0.8rem', textDecoration: 'none' }}>
+              <button
+                type="button"
+                onClick={() => setIsForgotPassword(true)}
+                style={{ 
+                  color: 'var(--gold)', 
+                  fontSize: '0.8rem', 
+                  textDecoration: 'none',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer'
+                }}
+              >
                 Forgot Password?
-              </a>
+              </button>
             </div>
             <button type="submit" className="btn btn-gold" style={{ width: '100%' }} disabled={loading}>
               {loading ? 'Loading...' : 'Login'}
