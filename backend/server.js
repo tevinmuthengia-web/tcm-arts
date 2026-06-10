@@ -522,11 +522,18 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     return res.status(400).json({ error: 'Email is required' });
   }
 
+  // DEBUG: Check if FRONTEND_URL is set
+  console.log('========== DEBUG: PASSWORD RESET ==========');
+  console.log('FRONTEND_URL from env:', process.env.FRONTEND_URL);
+  console.log('Request received for email:', email);
+  console.log('===========================================');
+
   try {
     const result = await pool.query('SELECT * FROM users WHERE email = $1', [email.toLowerCase()]);
     const user = result.rows[0];
 
     if (!user) {
+      console.log('User not found for email:', email);
       return res.json({ message: 'If an account exists, a reset link has been sent.' });
     }
 
@@ -539,12 +546,16 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     await pool.query('UPDATE users SET reset_token = $1, reset_expires = NOW() + INTERVAL \'1 hour\' WHERE id = $2', 
       [resetToken, user.id]);
 
-    const resetUrl = `${process.env.FRONTEND_URL || 'https://tcm-arts.onrender.com'}/reset-password?token=${resetToken}`;
+    const frontendUrl = process.env.FRONTEND_URL || 'https://tcm-arts.onrender.com';
+    const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
     
-    console.log(`Password reset link for ${email}: ${resetUrl}`);
+    console.log('========== PASSWORD RESET LINK ==========');
+    console.log(`Email: ${email}`);
+    console.log(`Reset URL: ${resetUrl}`);
+    console.log('========================================');
     
     res.json({ 
-      message: 'Password reset link generated. Check console or your email.',
+      message: 'Password reset link generated. Check the server logs for the link.',
       resetUrl: process.env.NODE_ENV === 'development' ? resetUrl : undefined
     });
   } catch (error) {
