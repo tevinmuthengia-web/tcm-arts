@@ -510,6 +510,128 @@ app.put('/api/admin/commissions/:id', requireAdmin, async (req, res) => {
   }
 });
 
+
+// ==========================================
+// 5. PASSWORD RESET & ACCOUNT DELETION
+// ==========================================
+
+// Forgot Password - Request reset
+app.post('/api/auth/forgot-password', async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: 'Email is required' });
+  }
+
+  try {
+    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email.toLowerCase()]);
+    const user = result.rows[0];
+
+    if (!user) {
+      return res.json({ message: 'If an account exists, a reset link has been sent.' });
+    }
+
+    const resetToken = jwt.sign(
+      { id: user.id, email: user.email },
+      JWT_SECRET + '_reset',
+      { expiresIn: '1h' }
+    );
+
+    await pool.query('UPDATE users SET reset_token = $1, reset_expires = NOW() + INTERVAL \'1 hour\' WHERE id = $2', 
+      [resetToken, user.id]);
+
+    const resetUrl = `${process.env.FRONTEND_URL || 'https://tcm-arts.onrender.com'}/reset-password?token=${resetToken}`;
+    
+    console.log(`Password reset link for ${email}: ${resetUrl}`);
+    
+    res.json({ 
+      message: 'Password reset link generated. Check console or your email.',
+      resetUrl: process.env.NODE_ENV === 'development' ? resetUrl : undefined
+    });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({ error: 'Failed to process request' });
+  }
+});
+
+// Reset Password - Set new password
+app.post('/api/auth/reset-password', async (req, res) => {
+  const { token, newPassword } = req.body;
+  if (!token || !newPassword) {
+    return res.status(400).json({ error: 'Token and new password are required' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET + '_reset');
+    
+    const result = await pool.query(
+      'SELECT * FROM users WHERE id = $1 AND reset_token = $2 AND reset_expires > NOW()',
+      [decoded.id, token]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(400).json({ error: 'Invalid or expired reset token' });
+    }
+
+    const salt = bcrypt.genSaltSync(10);
+    const hashedPassword = bcrypt.hashSync(newPassword, salt);
+
+    await pool.query(
+      'UPDATE users SET password = $1, reset_token = NULL, reset_expires = NULL WHERE id = $2',
+      [hashedPassword, decoded.id]
+    );
+
+    res.json({ message: 'Password has been reset successfully!' });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ error: 'Invalid or expired token' });
+  }
+});
+
+// Delete own account (Member)
+app.delete('/api/auth/delete-account', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    await pool.query('DELETE FROM bookings WHERE user_id = $1', [userId]);
+    await pool.query('DELETE FROM commissions WHERE user_id = $1', [userId]);
+    const result = await pool.query('DELETE FROM users WHERE id = $1 RETURNING id', [userId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    res.json({ message: 'Account deleted successfully' });
+  } catch (error) {
+    console.error('Delete account error:', error);
+    res.status(500).json({ error: 'Failed to delete account' });
+  }
+});
+
+// Admin - Delete any user
+app.delete('/api/admin/users/:userId', requireAdmin, async (req, res) => {
+  const { userId } = req.params;
+  
+  if (userId === req.user.id) {
+    return res.status(400).json({ error: 'You cannot delete your own admin account' });
+  }
+
+  try {
+    await pool.query('DELETE FROM bookings WHERE user_id = $1', [userId]);
+    await pool.query('DELETE FROM commissions WHERE user_id = $1', [userId]);
+    const result = await pool.query('DELETE FROM users WHERE id = $1 RETURNING id', [userId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    res.json({ message: 'User deleted successfully' });
+  } catch (error) {
+    console.error('Admin delete user error:', error);
+    res.status(500).json({ error: 'Failed to delete user' });
+  }
+});
+
+
 // Start the server
 app.listen(PORT, () => {
   console.log(`============================================`);
