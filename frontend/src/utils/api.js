@@ -1,157 +1,158 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || ''; // Configurable via Vite env var in production
+// frontend/src/utils/api.js
 
-// Helper to set headers
-const getHeaders = (isMultipart = false) => {
+const API_BASE = import.meta.env.VITE_API_URL || '';
+
+// Helper function for API requests
+const request = async (endpoint, options = {}) => {
   const token = localStorage.getItem('tcm_token');
-  const headers = {};
   
-  if (!isMultipart) {
-    headers['Content-Type'] = 'application/json';
-  }
+  const headers = {
+    'Content-Type': 'application/json',
+    ...options.headers,
+  };
   
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
   
-  return headers;
-};
-
-// Generic request wrapper
-const request = async (url, options = {}) => {
-  const response = await fetch(`${API_BASE_URL}${url}`, {
+  const response = await fetch(`${API_BASE}${endpoint}`, {
     ...options,
-    headers: {
-      ...getHeaders(options.body instanceof FormData),
-      ...options.headers,
-    },
+    headers,
   });
-
-  const text = await response.text();
-  let data;
-  try {
-    data = text ? JSON.parse(text) : {};
-  } catch (e) {
-    data = { error: text };
-  }
-
+  
+  const data = await response.json();
+  
   if (!response.ok) {
     throw new Error(data.error || 'Something went wrong');
   }
-
+  
   return data;
 };
 
-export const api = {
-  // 1. AUTHENTICATION APIs
-  auth: {
-    register: async (name, email, password) => {
-      const data = await request('/api/auth/register', {
-        method: 'POST',
-        body: JSON.stringify({ name, email, password }),
-      });
-      if (data.token) {
-        localStorage.setItem('tcm_token', data.token);
-        localStorage.setItem('tcm_user', JSON.stringify(data.user));
-      }
-      return data;
-    },
-
-    login: async (email, password) => {
-      const data = await request('/api/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ email, password }),
-      });
-      if (data.token) {
-        localStorage.setItem('tcm_token', data.token);
-        localStorage.setItem('tcm_user', JSON.stringify(data.user));
-      }
-      return data;
-    },
-
-    logout: () => {
-      localStorage.removeItem('tcm_token');
-      localStorage.removeItem('tcm_user');
-    },
-
-    getCurrentUser: async () => {
-      const token = localStorage.getItem('tcm_token');
-      if (!token) return null;
-      try {
-        const data = await request('/api/auth/me');
-        localStorage.setItem('tcm_user', JSON.stringify(data.user));
-        return data.user;
-      } catch (err) {
-        localStorage.removeItem('tcm_token');
-        localStorage.removeItem('tcm_user');
-        return null;
-      }
-    },
-  },
-
-  // 2. DYNAMIC CONTENT & CMS APIs
-  content: {
-    get: () => request('/api/content'),
-    update: (contentData) => request('/api/content', {
-      method: 'PUT',
-      body: JSON.stringify(contentData),
-    }),
-  },
-
-  // 3. ART GALLERY APIs
-  gallery: {
-    get: () => request('/api/gallery'),
-    add: (formData) => request('/api/gallery', {
+// Auth API
+const auth = {
+  register: (name, email, password) => 
+    request('/api/auth/register', {
       method: 'POST',
-      body: formData, // FormData containing details and file
+      body: JSON.stringify({ name, email, password }),
     }),
-    edit: (id, formData) => request(`/api/gallery/${id}`, {
-      method: 'PUT',
-      body: formData, // FormData for potential image edit
-    }),
-    delete: (id) => request(`/api/gallery/${id}`, {
-      method: 'DELETE',
-    }),
-  },
-
-  // 4. CLASSES & BOOKINGS APIs
-  classes: {
-    get: () => request('/api/classes'),
-    add: (classData) => request('/api/classes', {
+  
+  login: (email, password) => 
+    request('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify(classData),
+      body: JSON.stringify({ email, password }),
     }),
-    edit: (id, classData) => request(`/api/classes/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(classData),
-    }),
-    delete: (id) => request(`/api/classes/${id}`, {
-      method: 'DELETE',
-    }),
+  
+  me: async () => {
+    const token = localStorage.getItem('tcm_token');
+    if (!token) {
+      throw new Error('No token found');
+    }
+    return request('/api/auth/me');
   },
+};
 
-  bookings: {
-    create: (classId) => request('/api/bookings', {
+// Content API
+const content = {
+  get: () => request('/api/content'),
+  update: (data) => 
+    request('/api/content', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+};
+
+// Gallery API
+const gallery = {
+  get: () => request('/api/gallery'),
+  add: (formData) => {
+    const token = localStorage.getItem('tcm_token');
+    return fetch(`${API_BASE}/api/gallery`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: formData,
+    }).then(async (res) => {
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      return data;
+    });
+  },
+  edit: (id, formData) => {
+    const token = localStorage.getItem('tcm_token');
+    return fetch(`${API_BASE}/api/gallery/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: formData,
+    }).then(async (res) => {
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      return data;
+    });
+  },
+  delete: (id) => 
+    request(`/api/gallery/${id}`, { method: 'DELETE' }),
+};
+
+// Classes API
+const classes = {
+  get: () => request('/api/classes'),
+  add: (data) => 
+    request('/api/classes', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  edit: (id, data) => 
+    request(`/api/classes/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  delete: (id) => 
+    request(`/api/classes/${id}`, { method: 'DELETE' }),
+};
+
+// Bookings API
+const bookings = {
+  create: (classId) => 
+    request('/api/bookings', {
       method: 'POST',
       body: JSON.stringify({ classId }),
     }),
-    getMy: () => request('/api/bookings/my'),
-  },
+  getMy: () => request('/api/bookings/my'),
+};
 
-  commissions: {
-    create: (commissionData) => request('/api/commissions', {
+// Commissions API
+const commissions = {
+  create: (data) => 
+    request('/api/commissions', {
       method: 'POST',
-      body: JSON.stringify(commissionData),
+      body: JSON.stringify(data),
     }),
-    getMy: () => request('/api/commissions/my'),
-    getAll: () => request('/api/admin/commissions'),
-    updateStatus: (id, status) => request(`/api/admin/commissions/${id}`, {
+  getMy: () => request('/api/commissions/my'),
+  getAll: () => request('/api/admin/commissions'),
+  updateStatus: (id, status) => 
+    request(`/api/admin/commissions/${id}`, {
       method: 'PUT',
       body: JSON.stringify({ status }),
     }),
-  },
+};
 
-  // 5. USER VIEWER (Admin only)
-  admin: {
-    getUsers: () => request('/api/admin/users'),
-  },
+// Admin API
+const admin = {
+  getUsers: () => request('/api/admin/users'),
+  deleteUser: (userId) => 
+    request(`/api/admin/users/${userId}`, { method: 'DELETE' }),
+};
+
+export const api = {
+  auth,
+  content,
+  gallery,
+  classes,
+  bookings,
+  commissions,
+  admin,
 };
