@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useApp } from '../App';
+import { useApp } from '../context/AppContext';
 import { api } from '../utils/api';
 import { Edit, Image, Plus, Trash2, Calendar, FileText, CheckCircle2, Shield, User } from 'lucide-react';
 

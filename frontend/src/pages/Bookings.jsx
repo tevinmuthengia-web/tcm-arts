@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useApp } from '../App';
+import { useApp } from '../context/AppContext';
 import { api } from '../utils/api';
 import { Palette, Compass, Crown, Calendar, Sparkles, FileText, ShoppingBag, Layers, UserCheck } from 'lucide-react';
 

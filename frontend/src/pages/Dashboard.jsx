@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useApp } from '../App';
+import { useApp } from '../context/AppContext';
 import { api } from '../utils/api';
 import { Calendar, Clock, Award, Trash2, AlertCircle } from 'lucide-react';
 

@@ -1,6 +1,6 @@
 // frontend/src/pages/FineArts.jsx
 import React, { useState, useEffect } from 'react';
-import { useApp } from '../App';
+import { useApp } from '../context/AppContext';
 import { api } from '../utils/api';
 import { Palette, Layers, Calendar, ShoppingBag, FileText } from 'lucide-react';
 
