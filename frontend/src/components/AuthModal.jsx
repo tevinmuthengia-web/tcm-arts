@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useApp } from '../App';
+import { useApp } from '../context/AppContext';
 import { api } from '../utils/api';
 import { X } from 'lucide-react';
 
@@ -21,7 +21,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
     setLoading(true);
     try {
       const data = await api.auth.login(email, password);
-      localStorage.setItem('token', data.token);
+      localStorage.setItem('tcm_token', data.token);
       setUser(data.user);
       showToast(`Welcome back, ${data.user.name}!`);
       onClose();
@@ -37,7 +37,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
     setLoading(true);
     try {
       const data = await api.auth.register(name, email, password);
-      localStorage.setItem('token', data.token);
+      localStorage.setItem('tcm_token', data.token);
       setUser(data.user);
       showToast(`Welcome to TCM Arts, ${data.user.name}!`);
       onClose();
@@ -344,6 +344,27 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }) {
             <button type="submit" className="btn btn-gold" style={{ width: '100%' }} disabled={loading}>
               {loading ? 'Creating Account...' : 'Create Account'}
             </button>
+            
+            {/* Link back to login */}
+            <div style={{ textAlign: 'center', marginTop: '16px' }}>
+              <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                Already have an account?{' '}
+              </span>
+              <button
+                type="button"
+                onClick={() => setActiveTab('login')}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--gold)',
+                  fontSize: '0.85rem',
+                  cursor: 'pointer',
+                  textDecoration: 'underline'
+                }}
+              >
+                Login here
+              </button>
+            </div>
           </form>
         )}
       </div>
