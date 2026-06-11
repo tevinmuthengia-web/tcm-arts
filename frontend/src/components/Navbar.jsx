@@ -236,7 +236,7 @@ export default function Navbar() {
           )}
         </div>
 
-        {/* Mobile Hamburguer Toggle */}
+        {/* Mobile Hamburger Toggle */}
         <button 
           className="mobile-toggle"
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -245,7 +245,7 @@ export default function Navbar() {
             border: 'none',
             color: 'var(--text-primary)',
             cursor: 'pointer',
-            display: 'none' /* Will override via stylesheet below */
+            display: 'none'
           }}
         >
           {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}

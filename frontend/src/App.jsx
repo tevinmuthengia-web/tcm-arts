@@ -14,7 +14,17 @@ import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import { api } from './utils/api';
 
+// Create the Context (OUTSIDE the App component)
 export const AppContext = React.createContext();
+
+// Create the custom hook for using the context
+export const useApp = () => {
+  const context = React.useContext(AppContext);
+  if (context === undefined) {
+    throw new Error('useApp must be used within an AppProvider');
+  }
+  return context;
+};
 
 function App() {
   const [user, setUser] = useState(null);
