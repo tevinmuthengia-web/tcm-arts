@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { AppProvider, useApp } from './context/AppContext';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import AuthModal from './components/AuthModal';
@@ -12,71 +13,10 @@ import AdminPanel from './pages/AdminPanel';
 import Bookings from './pages/Bookings';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
-import { api } from './utils/api';
 
-// Create and export the Context (MUST be outside the App function)
-export const AppContext = React.createContext(null);
-
-// Export useApp hook (MUST be outside the App function)
-export const useApp = () => {
-  const context = React.useContext(AppContext);
-  if (context === null) {
-    throw new Error('useApp must be used within an AppProvider');
-  }
-  return context;
-};
-
-function App() {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authModalTab, setAuthModalTab] = useState('login');
-  const [siteContent, setSiteContent] = useState({});
-  const [toast, setToast] = useState({ message: null, type: 'success' });
-
-  const showToast = (message, type = 'success') => {
-    setToast({ message, type });
-    setTimeout(() => setToast({ message: null, type: 'success' }), 4000);
-  };
-
-  const reloadContent = async () => {
-    try {
-      const content = await api.content.get();
-      setSiteContent(content);
-    } catch (err) {
-      console.error('Failed to load content:', err);
-    }
-  };
-
-  useEffect(() => {
-    const token = localStorage.getItem('tcm_token');
-    if (token) {
-      api.auth.me().then(userData => {
-        setUser(userData.user);
-      }).catch(() => {
-        localStorage.removeItem('tcm_token');
-        localStorage.removeItem('tcm_user');
-      }).finally(() => {
-        setLoading(false);
-      });
-    } else {
-      setLoading(false);
-    }
-    reloadContent();
-  }, []);
-
-  const value = {
-    user,
-    setUser,
-    loading,
-    showAuthModal,
-    setShowAuthModal,
-    authModalTab,
-    setAuthModalTab,
-    siteContent,
-    reloadContent,
-    showToast
-  };
+// This component uses the context and must be INSIDE the AppProvider
+function AppContent() {
+  const { user, loading, showAuthModal, setShowAuthModal, authModalTab, showToast, toast } = useApp();
 
   if (loading) {
     return (
@@ -93,31 +33,38 @@ function App() {
   }
 
   return (
-    <AppContext.Provider value={value}>
-      <Router>
-        <div className="App">
-          <Navbar />
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/fine-arts" element={<FineArts />} />
-            <Route path="/skating" element={<Skating />} />
-            <Route path="/chess" element={<Chess />} />
-            <Route path="/dashboard" element={user ? <Dashboard /> : <Navigate to="/" />} />
-            <Route path="/admin" element={user?.role === 'admin' ? <AdminPanel /> : <Navigate to="/" />} />
-            <Route path="/bookings" element={user ? <Bookings /> : <Navigate to="/" />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/reset-password" element={<ResetPassword />} />
-          </Routes>
-          <Footer />
-          <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} initialTab={authModalTab} />
-          {toast.message && (
-            <div className={`toast toast-${toast.type}`} style={{ position: 'fixed', bottom: '20px', right: '20px', zIndex: 1100 }}>
-              {toast.message}
-            </div>
-          )}
+    <>
+      <Navbar />
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/fine-arts" element={<FineArts />} />
+        <Route path="/skating" element={<Skating />} />
+        <Route path="/chess" element={<Chess />} />
+        <Route path="/dashboard" element={user ? <Dashboard /> : <Navigate to="/" />} />
+        <Route path="/admin" element={user?.role === 'admin' ? <AdminPanel /> : <Navigate to="/" />} />
+        <Route path="/bookings" element={user ? <Bookings /> : <Navigate to="/" />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+      </Routes>
+      <Footer />
+      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} initialTab={authModalTab} />
+      {toast?.message && (
+        <div className={`toast toast-${toast.type}`} style={{ position: 'fixed', bottom: '20px', right: '20px', zIndex: 1100 }}>
+          {toast.message}
         </div>
-      </Router>
-    </AppContext.Provider>
+      )}
+    </>
+  );
+}
+
+// Main App component - AppProvider wraps everything
+function App() {
+  return (
+    <Router>
+      <AppProvider>
+        <AppContent />
+      </AppProvider>
+    </Router>
   );
 }
 
