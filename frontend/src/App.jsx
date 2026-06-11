@@ -14,13 +14,13 @@ import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import { api } from './utils/api';
 
-// Create the Context (OUTSIDE the App component)
-export const AppContext = React.createContext();
+// Create and export the Context (MUST be outside the App function)
+export const AppContext = React.createContext(null);
 
-// Create the custom hook for using the context
+// Export useApp hook (MUST be outside the App function)
 export const useApp = () => {
   const context = React.useContext(AppContext);
-  if (context === undefined) {
+  if (context === null) {
     throw new Error('useApp must be used within an AppProvider');
   }
   return context;
@@ -49,12 +49,13 @@ function App() {
   };
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('tcm_token');
     if (token) {
       api.auth.me().then(userData => {
         setUser(userData.user);
       }).catch(() => {
-        localStorage.removeItem('token');
+        localStorage.removeItem('tcm_token');
+        localStorage.removeItem('tcm_user');
       }).finally(() => {
         setLoading(false);
       });
