@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { HelmetProvider } from '@vuer-ai/react-helmet-async';
 import { AppProvider, useApp } from './context/AppContext';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
@@ -60,11 +61,13 @@ function AppContent() {
 // Main App component - AppProvider wraps everything
 function App() {
   return (
-    <Router>
-      <AppProvider>
-        <AppContent />
-      </AppProvider>
-    </Router>
+    <HelmetProvider>
+      <Router>
+        <AppProvider>
+          <AppContent />
+        </AppProvider>
+      </Router>
+    </HelmetProvider>
   );
 }
 
