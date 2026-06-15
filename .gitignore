@@ -1,2 +1,4 @@
 node_modules
 backend/database/db.json
+frontend/dist/
+vite.config.js

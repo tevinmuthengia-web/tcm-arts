@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { useApp } from '../App';
+import { useApp } from '../context/AppContext';
 import { Palette, Compass, Crown, Sparkles, Brain, ArrowRight, Instagram, MessageCircle } from 'lucide-react';
 import { Helmet } from '@vuer-ai/react-helmet-async';
 
