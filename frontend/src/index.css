@@ -718,3 +718,69 @@ textarea.form-control {
   }
 }
 
+/* ============================================
+   FIX: Gallery image description overlap
+   ============================================ */
+
+/* Ensure the image wrapper has proper z-index context */
+.glass-card.glow-art {
+  position: relative;
+  z-index: 1;
+}
+
+/* Fix the image container - prevent description overlap */
+.glass-card.glow-art .image-wrapper {
+  position: relative;
+  z-index: 2;
+  overflow: hidden;
+  border-radius: 14px;
+}
+
+/* Ensure the magnifying glass icon stays on top of image */
+.glass-card.glow-art .magnify-icon {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  z-index: 5;
+  background: rgba(0, 0, 0, 0.7);
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.8;
+  pointer-events: none;
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* Fix the image itself - ensure it doesn't overflow */
+.glass-card.glow-art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Keep text below the image - prevent overlap */
+.glass-card.glow-art h3,
+.glass-card.glow-art .badge,
+.glass-card.glow-art p,
+.glass-card.glow-art .price-row {
+  position: relative;
+  z-index: 1;
+}
+
+/* Force the image container to stay above text */
+.glass-card.glow-art > div:first-child {
+  position: relative;
+  z-index: 2;
+}
+
+/* Ensure text stays below */
+.glass-card.glow-art > div:not(:first-child) {
+  position: relative;
+  z-index: 1;
+}
+
