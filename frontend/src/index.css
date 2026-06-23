@@ -493,3 +493,228 @@ textarea.form-control {
   }
 }
 
+/* ============================================
+   LIGHTBOX/MAGNIFY STYLES - For image zoom
+   ============================================ */
+
+/* Lightbox overlay animation */
+@keyframes lightboxFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Lightbox image zoom animation */
+@keyframes lightboxZoomIn {
+  from {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Lightbox container */
+.lightbox-overlay {
+  animation: lightboxFadeIn 0.3s ease-out;
+}
+
+/* Lightbox image */
+.lightbox-image {
+  animation: lightboxZoomIn 0.3s ease-out;
+}
+
+/* Magnifying glass icon on gallery images */
+.gallery-image-wrapper {
+  position: relative;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.gallery-image-wrapper .magnify-icon {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.gallery-image-wrapper:hover .magnify-icon {
+  opacity: 1;
+}
+
+/* Image hover scale effect */
+.gallery-image {
+  transition: transform 0.3s ease;
+}
+
+.gallery-image:hover {
+  transform: scale(1.05);
+}
+
+/* Lightbox close button */
+.lightbox-close-btn {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #fff;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  font-size: 24px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+  z-index: 10;
+}
+
+.lightbox-close-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.05);
+}
+
+/* Lightbox navigation buttons */
+.lightbox-nav-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #fff;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+  z-index: 10;
+}
+
+.lightbox-nav-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.05);
+}
+
+.lightbox-nav-btn.prev {
+  left: 20px;
+}
+
+.lightbox-nav-btn.next {
+  right: 20px;
+}
+
+/* Lightbox info panel */
+.lightbox-info {
+  position: absolute;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(10px);
+  padding: 12px 24px;
+  border-radius: 12px;
+  text-align: center;
+  max-width: 80%;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  z-index: 10;
+}
+
+.lightbox-info h3 {
+  color: #fff;
+  margin-bottom: 4px;
+  font-size: 1.1rem;
+}
+
+.lightbox-info p {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.lightbox-info .price {
+  color: var(--gold);
+  font-size: 0.8rem;
+  margin-top: 4px;
+}
+
+.lightbox-info .counter {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.7rem;
+  margin-top: 4px;
+}
+
+/* Mobile responsiveness for lightbox */
+@media (max-width: 768px) {
+  .lightbox-close-btn {
+    top: 10px;
+    right: 10px;
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+  }
+  
+  .lightbox-nav-btn {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .lightbox-nav-btn.prev {
+    left: 10px;
+  }
+  
+  .lightbox-nav-btn.next {
+    right: 10px;
+  }
+  
+  .lightbox-info {
+    padding: 8px 16px;
+    max-width: 90%;
+    bottom: 15px;
+  }
+  
+  .lightbox-info h3 {
+    font-size: 0.9rem;
+  }
+  
+  .lightbox-info p {
+    font-size: 0.75rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .lightbox-nav-btn {
+    width: 32px;
+    height: 32px;
+  }
+  
+  .lightbox-nav-btn.prev {
+    left: 5px;
+  }
+  
+  .lightbox-nav-btn.next {
+    right: 5px;
+  }
+}
+

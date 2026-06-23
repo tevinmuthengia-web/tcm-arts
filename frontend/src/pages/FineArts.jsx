@@ -1,14 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { api } from '../utils/api';
-import { Palette, Layers, Calendar, ShoppingBag, FileText } from 'lucide-react';
+import { Palette, Layers, Calendar, ShoppingBag, FileText, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Helmet } from '@vuer-ai/react-helmet-async';
 
 export default function FineArts() {
   const { siteContent, user, setShowAuthModal, setAuthModalTab, showToast } = useApp();
   const [gallery, setGallery] = useState([]);
   const [classes, setClasses] = useState([]);
-  const [isLoading, setIsLoading] = useState(true); // Add loading state
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Lightbox state
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   // Commission Form State
   const [medium, setMedium] = useState('Oil on Canvas');
@@ -22,7 +26,7 @@ export default function FineArts() {
     try {
       console.log("Fetching gallery data...");
       const art = await api.gallery.get();
-      console.log("Raw gallery data received:", art); // LOG THE DATA
+      console.log("Raw gallery data received:", art);
       setGallery(art);
       
       const allClasses = await api.classes.get();
@@ -39,7 +43,39 @@ export default function FineArts() {
     fetchArtData();
   }, []);
 
-  // --- All your other handlers (handleBookClass, handleCommissionSubmit) remain EXACTLY the same ---
+  // --- Lightbox handlers ---
+  const openLightbox = (index) => {
+    setCurrentImageIndex(index);
+    setLightboxOpen(true);
+    document.body.style.overflow = 'hidden';
+  };
+
+  const closeLightbox = () => {
+    setLightboxOpen(false);
+    document.body.style.overflow = 'auto';
+  };
+
+  const goToPrev = () => {
+    setCurrentImageIndex((prev) => (prev - 1 + gallery.length) % gallery.length);
+  };
+
+  const goToNext = () => {
+    setCurrentImageIndex((prev) => (prev + 1) % gallery.length);
+  };
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (!lightboxOpen) return;
+      if (e.key === 'Escape') closeLightbox();
+      if (e.key === 'ArrowLeft') goToPrev();
+      if (e.key === 'ArrowRight') goToNext();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [lightboxOpen]);
+
+  // --- Handlers ---
   const handleBookClass = async (classId, classTitle) => {
     if (!user) {
       setAuthModalTab('login');
@@ -77,7 +113,6 @@ export default function FineArts() {
       setSubmittingCommission(false);
     }
   };
-  // --- End of handlers ---
 
   const pageTexts = siteContent?.fineArts || {
     title: "Fine Arts Studio",
@@ -145,7 +180,7 @@ export default function FineArts() {
               {gallery.length === 0 ? (
                 <p>No artwork available in this gallery yet. Check back soon for new pieces.</p>
               ) : (
-                gallery.map(art => (
+                gallery.map((art, index) => (
                   <div 
                     key={art.id} 
                     className="glass-card glow-art"
@@ -156,16 +191,20 @@ export default function FineArts() {
                       padding: '16px'
                     }}
                   >
-                    {/* Image Wrap */}
-                    <div style={{
-                      position: 'relative',
-                      width: '100%',
-                      height: '240px',
-                      borderRadius: '14px',
-                      overflow: 'hidden',
-                      marginBottom: '16px',
-                      backgroundColor: 'rgba(0,0,0,0.2)'
-                    }}>
+                    {/* Image Wrap with click handler for lightbox */}
+                    <div 
+                      style={{
+                        position: 'relative',
+                        width: '100%',
+                        height: '240px',
+                        borderRadius: '14px',
+                        overflow: 'hidden',
+                        marginBottom: '16px',
+                        backgroundColor: 'rgba(0,0,0,0.2)',
+                        cursor: 'pointer'
+                      }}
+                      onClick={() => openLightbox(index)}
+                    >
                       {art.image_url ? (
                         <img 
                           src={art.image_url.startsWith('/uploads') ? art.image_url : art.image_url} 
@@ -173,8 +212,11 @@ export default function FineArts() {
                           style={{
                             width: '100%',
                             height: '100%',
-                            objectFit: 'cover'
+                            objectFit: 'cover',
+                            transition: 'transform 0.3s ease'
                           }}
+                          onMouseEnter={(e) => e.target.style.transform = 'scale(1.05)'}
+                          onMouseLeave={(e) => e.target.style.transform = 'scale(1)'}
                           onError={(e) => { e.target.style.display = 'none'; e.target.parentElement.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;">Image failed to load</div>'; }}
                         />
                       ) : (
@@ -190,6 +232,23 @@ export default function FineArts() {
                           No Image Available
                         </div>
                       )}
+                      {/* Zoom icon overlay */}
+                      <div style={{
+                        position: 'absolute',
+                        bottom: '10px',
+                        right: '10px',
+                        background: 'rgba(0,0,0,0.6)',
+                        borderRadius: '50%',
+                        width: '32px',
+                        height: '32px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        opacity: '0.7',
+                        transition: 'opacity 0.3s ease'
+                      }}>
+                        <span style={{ fontSize: '16px', color: '#fff' }}>🔍</span>
+                      </div>
                       {art.is_sold && (
                         <div style={{
                           position: 'absolute',
@@ -249,7 +308,6 @@ export default function FineArts() {
         </section>
 
         {/* 3. CLASSES */}
-        {/* ... rest of your component remains the same ... */}
         <section style={{ marginBottom: '80px', backgroundColor: 'rgba(255,255,255,0.01)', padding: '60px 0', borderTop: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)' }}>
           <div className="container">
             <h2 style={{ fontSize: '1.8rem', fontFamily: 'var(--font-heading)', marginBottom: '12px' }}>
@@ -402,6 +460,176 @@ export default function FineArts() {
         </section>
 
       </div>
+
+      {/* ============================================
+          LIGHTBOX MODAL
+          ============================================ */}
+      {lightboxOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.92)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+            animation: 'fadeIn 0.3s ease-out'
+          }}
+          onClick={closeLightbox}
+        >
+          {/* Close button */}
+          <button
+            onClick={closeLightbox}
+            style={{
+              position: 'absolute',
+              top: '20px',
+              right: '20px',
+              background: 'rgba(255,255,255,0.1)',
+              border: 'none',
+              color: '#fff',
+              width: '50px',
+              height: '50px',
+              borderRadius: '50%',
+              fontSize: '24px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.3s ease',
+              backdropFilter: 'blur(10px)',
+              border: '1px solid rgba(255,255,255,0.1)'
+            }}
+            onMouseEnter={(e) => { e.target.style.background = 'rgba(255,255,255,0.2)'; }}
+            onMouseLeave={(e) => { e.target.style.background = 'rgba(255,255,255,0.1)'; }}
+          >
+            <X size={28} />
+          </button>
+
+          {/* Previous button */}
+          {gallery.length > 1 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); goToPrev(); }}
+              style={{
+                position: 'absolute',
+                left: '20px',
+                background: 'rgba(255,255,255,0.1)',
+                border: 'none',
+                color: '#fff',
+                width: '50px',
+                height: '50px',
+                borderRadius: '50%',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.3s ease',
+                backdropFilter: 'blur(10px)',
+                border: '1px solid rgba(255,255,255,0.1)'
+              }}
+              onMouseEnter={(e) => { e.target.style.background = 'rgba(255,255,255,0.2)'; }}
+              onMouseLeave={(e) => { e.target.style.background = 'rgba(255,255,255,0.1)'; }}
+            >
+              <ChevronLeft size={28} />
+            </button>
+          )}
+
+          {/* Next button */}
+          {gallery.length > 1 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); goToNext(); }}
+              style={{
+                position: 'absolute',
+                right: '20px',
+                background: 'rgba(255,255,255,0.1)',
+                border: 'none',
+                color: '#fff',
+                width: '50px',
+                height: '50px',
+                borderRadius: '50%',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.3s ease',
+                backdropFilter: 'blur(10px)',
+                border: '1px solid rgba(255,255,255,0.1)'
+              }}
+              onMouseEnter={(e) => { e.target.style.background = 'rgba(255,255,255,0.2)'; }}
+              onMouseLeave={(e) => { e.target.style.background = 'rgba(255,255,255,0.1)'; }}
+            >
+              <ChevronRight size={28} />
+            </button>
+          )}
+
+          {/* Image container */}
+          <div
+            style={{
+              maxWidth: '90vw',
+              maxHeight: '85vh',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'default'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {gallery[currentImageIndex]?.image_url ? (
+              <img
+                src={gallery[currentImageIndex].image_url}
+                alt={gallery[currentImageIndex].title}
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: '85vh',
+                  objectFit: 'contain',
+                  borderRadius: '8px',
+                  boxShadow: '0 20px 60px rgba(0,0,0,0.8)'
+                }}
+              />
+            ) : (
+              <div style={{ color: '#fff', fontSize: '1.2rem' }}>No image available</div>
+            )}
+          </div>
+
+          {/* Image info - title and description */}
+          {gallery[currentImageIndex] && (
+            <div
+              style={{
+                position: 'absolute',
+                bottom: '30px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                background: 'rgba(0,0,0,0.7)',
+                backdropFilter: 'blur(10px)',
+                padding: '12px 24px',
+                borderRadius: '12px',
+                textAlign: 'center',
+                maxWidth: '80%',
+                border: '1px solid rgba(255,255,255,0.05)'
+              }}
+            >
+              <h3 style={{ color: '#fff', marginBottom: '4px', fontSize: '1.1rem' }}>
+                {gallery[currentImageIndex].title}
+              </h3>
+              {gallery[currentImageIndex].description && (
+                <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem', margin: 0 }}>
+                  {gallery[currentImageIndex].description}
+                </p>
+              )}
+              <p style={{ color: 'var(--gold)', fontSize: '0.8rem', marginTop: '4px' }}>
+                {gallery[currentImageIndex].medium} • Ksh {parseFloat(gallery[currentImageIndex].price).toLocaleString()}
+              </p>
+              <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.7rem', marginTop: '4px' }}>
+                {currentImageIndex + 1} / {gallery.length}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
     </>
   );
 }
