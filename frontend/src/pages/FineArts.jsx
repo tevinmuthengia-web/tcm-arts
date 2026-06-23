@@ -478,7 +478,7 @@ export default function FineArts() {
       </div>
 
       {/* ============================================
-          LIGHTBOX MODAL
+          LIGHTBOX MODAL - FIXED LAYOUT
           ============================================ */}
       {lightboxOpen && (
         <div
@@ -533,6 +533,8 @@ export default function FineArts() {
               style={{
                 position: 'absolute',
                 left: '20px',
+                top: '50%',
+                transform: 'translateY(-50%)',
                 background: 'rgba(255,255,255,0.1)',
                 border: 'none',
                 color: '#fff',
@@ -545,7 +547,8 @@ export default function FineArts() {
                 justifyContent: 'center',
                 transition: 'all 0.3s ease',
                 backdropFilter: 'blur(10px)',
-                border: '1px solid rgba(255,255,255,0.1)'
+                border: '1px solid rgba(255,255,255,0.1)',
+                zIndex: 10
               }}
               onMouseEnter={(e) => { e.target.style.background = 'rgba(255,255,255,0.2)'; }}
               onMouseLeave={(e) => { e.target.style.background = 'rgba(255,255,255,0.1)'; }}
@@ -561,6 +564,8 @@ export default function FineArts() {
               style={{
                 position: 'absolute',
                 right: '20px',
+                top: '50%',
+                transform: 'translateY(-50%)',
                 background: 'rgba(255,255,255,0.1)',
                 border: 'none',
                 color: '#fff',
@@ -573,7 +578,8 @@ export default function FineArts() {
                 justifyContent: 'center',
                 transition: 'all 0.3s ease',
                 backdropFilter: 'blur(10px)',
-                border: '1px solid rgba(255,255,255,0.1)'
+                border: '1px solid rgba(255,255,255,0.1)',
+                zIndex: 10
               }}
               onMouseEnter={(e) => { e.target.style.background = 'rgba(255,255,255,0.2)'; }}
               onMouseLeave={(e) => { e.target.style.background = 'rgba(255,255,255,0.1)'; }}
@@ -582,68 +588,78 @@ export default function FineArts() {
             </button>
           )}
 
-          {/* Image container */}
+          {/* Image + Info container - FIXED: column layout */}
           <div
             style={{
-              maxWidth: '90vw',
-              maxHeight: '85vh',
               display: 'flex',
+              flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              cursor: 'default'
+              maxWidth: '95vw',
+              maxHeight: '90vh',
+              gap: '16px'
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            {gallery[currentImageIndex]?.image_url ? (
-              <img
-                src={gallery[currentImageIndex].image_url}
-                alt={gallery[currentImageIndex].title}
-                style={{
-                  maxWidth: '100%',
-                  maxHeight: '85vh',
-                  objectFit: 'contain',
-                  borderRadius: '8px',
-                  boxShadow: '0 20px 60px rgba(0,0,0,0.8)'
-                }}
-              />
-            ) : (
-              <div style={{ color: '#fff', fontSize: '1.2rem' }}>No image available</div>
-            )}
-          </div>
-
-          {/* Image info - title and description */}
-          {gallery[currentImageIndex] && (
+            {/* Image container */}
             <div
               style={{
-                position: 'absolute',
-                bottom: '30px',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                background: 'rgba(0,0,0,0.7)',
-                backdropFilter: 'blur(10px)',
-                padding: '12px 24px',
-                borderRadius: '12px',
-                textAlign: 'center',
-                maxWidth: '80%',
-                border: '1px solid rgba(255,255,255,0.05)'
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                maxWidth: '90vw',
+                maxHeight: '70vh',
+                overflow: 'hidden'
               }}
             >
-              <h3 style={{ color: '#fff', marginBottom: '4px', fontSize: '1.1rem' }}>
-                {gallery[currentImageIndex].title}
-              </h3>
-              {gallery[currentImageIndex].description && (
-                <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem', margin: 0 }}>
-                  {gallery[currentImageIndex].description}
-                </p>
+              {gallery[currentImageIndex]?.image_url ? (
+                <img
+                  src={gallery[currentImageIndex].image_url}
+                  alt={gallery[currentImageIndex].title}
+                  style={{
+                    maxWidth: '100%',
+                    maxHeight: '70vh',
+                    objectFit: 'contain',
+                    borderRadius: '8px',
+                    boxShadow: '0 20px 60px rgba(0,0,0,0.8)'
+                  }}
+                />
+              ) : (
+                <div style={{ color: '#fff', fontSize: '1.2rem' }}>No image available</div>
               )}
-              <p style={{ color: 'var(--gold)', fontSize: '0.8rem', marginTop: '4px' }}>
-                {gallery[currentImageIndex].medium} • Ksh {parseFloat(gallery[currentImageIndex].price).toLocaleString()}
-              </p>
-              <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.7rem', marginTop: '4px' }}>
-                {currentImageIndex + 1} / {gallery.length}
-              </p>
             </div>
-          )}
+
+            {/* Image info - NOW BELOW THE IMAGE */}
+            {gallery[currentImageIndex] && (
+              <div
+                style={{
+                  background: 'rgba(0,0,0,0.7)',
+                  backdropFilter: 'blur(10px)',
+                  padding: '12px 24px',
+                  borderRadius: '12px',
+                  textAlign: 'center',
+                  maxWidth: '80%',
+                  border: '1px solid rgba(255,255,255,0.05)',
+                  flexShrink: 0
+                }}
+              >
+                <h3 style={{ color: '#fff', marginBottom: '4px', fontSize: '1.1rem' }}>
+                  {gallery[currentImageIndex].title}
+                </h3>
+                {gallery[currentImageIndex].description && (
+                  <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem', margin: 0 }}>
+                    {gallery[currentImageIndex].description}
+                  </p>
+                )}
+                <p style={{ color: 'var(--gold)', fontSize: '0.8rem', marginTop: '4px' }}>
+                  {gallery[currentImageIndex].medium} • Ksh {parseFloat(gallery[currentImageIndex].price).toLocaleString()}
+                </p>
+                <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.7rem', marginTop: '4px' }}>
+                  {currentImageIndex + 1} / {gallery.length}
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </>
