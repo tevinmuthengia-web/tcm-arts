@@ -188,10 +188,11 @@ export default function FineArts() {
                       display: 'flex',
                       flexDirection: 'column',
                       height: '100%',
-                      padding: '16px'
+                      padding: '16px',
+                      overflow: 'hidden'
                     }}
                   >
-                    {/* Image Wrap with click handler for lightbox */}
+                    {/* Image Wrap - FIXED with proper isolation */}
                     <div 
                       style={{
                         position: 'relative',
@@ -201,7 +202,9 @@ export default function FineArts() {
                         overflow: 'hidden',
                         marginBottom: '16px',
                         backgroundColor: 'rgba(0,0,0,0.2)',
-                        cursor: 'pointer'
+                        cursor: 'pointer',
+                        flexShrink: 0,
+                        isolation: 'isolate'
                       }}
                       onClick={() => openLightbox(index)}
                     >
@@ -213,11 +216,12 @@ export default function FineArts() {
                             width: '100%',
                             height: '100%',
                             objectFit: 'cover',
+                            display: 'block',
                             transition: 'transform 0.3s ease'
                           }}
                           onMouseEnter={(e) => e.target.style.transform = 'scale(1.05)'}
                           onMouseLeave={(e) => e.target.style.transform = 'scale(1)'}
-                          onError={(e) => { e.target.style.display = 'none'; e.target.parentElement.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;">Image failed to load</div>'; }}
+                          onError={(e) => { e.target.style.display = 'none'; e.target.parentElement.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);">Image failed to load</div>'; }}
                         />
                       ) : (
                         <div style={{
@@ -232,20 +236,22 @@ export default function FineArts() {
                           No Image Available
                         </div>
                       )}
-                      {/* Zoom icon overlay */}
+                      {/* Magnifying glass icon - always visible */}
                       <div style={{
                         position: 'absolute',
-                        bottom: '10px',
-                        right: '10px',
+                        bottom: '12px',
+                        right: '12px',
                         background: 'rgba(0,0,0,0.6)',
                         borderRadius: '50%',
-                        width: '32px',
-                        height: '32px',
+                        width: '34px',
+                        height: '34px',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        opacity: '0.7',
-                        transition: 'opacity 0.3s ease'
+                        backdropFilter: 'blur(4px)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        pointerEvents: 'none',
+                        zIndex: 5
                       }}>
                         <span style={{ fontSize: '16px', color: '#fff' }}>🔍</span>
                       </div>
@@ -272,33 +278,42 @@ export default function FineArts() {
                       )}
                     </div>
 
-                    {/* Details */}
-                    <h3 style={{ fontSize: '1.2rem', fontFamily: 'var(--font-heading)', color: '#fff', marginBottom: '6px' }}>{art.title}</h3>
-                    <span className="badge badge-art" style={{ width: 'fit-content', marginBottom: '12px' }}>{art.medium}</span>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', flexGrow: 1, marginBottom: '16px' }}>{art.description}</p>
-                    
+                    {/* Details - SEPARATED BELOW IMAGE */}
                     <div style={{
                       display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      marginTop: 'auto',
-                      borderTop: '1px solid var(--border-color)',
-                      paddingTop: '12px'
+                      flexDirection: 'column',
+                      flex: '1 1 auto',
+                      minHeight: 0,
+                      overflow: 'hidden'
                     }}>
-                      <span style={{ fontFamily: 'var(--font-heading)', fontSize: '1.25rem', fontWeight: 700, color: '#fff' }}>
-                        Ksh {parseFloat(art.price).toLocaleString()}
-                      </span>
-                      {!art.is_sold ? (
-                        <button 
-                          onClick={() => showToast(`Simulated acquiring: "${art.title}"! We have received your purchase intent.`)}
-                          className="btn btn-gold" 
-                          style={{ padding: '8px 16px', fontSize: '0.85rem' }}
-                        >
-                          <ShoppingBag size={14} /> Buy Piece
-                        </button>
-                      ) : (
-                        <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Private Collection</span>
-                      )}
+                      <h3 style={{ fontSize: '1.2rem', fontFamily: 'var(--font-heading)', color: '#fff', marginBottom: '6px' }}>{art.title}</h3>
+                      <span className="badge badge-art" style={{ width: 'fit-content', marginBottom: '12px' }}>{art.medium}</span>
+                      <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', flexGrow: 1, marginBottom: '16px', overflow: 'hidden' }}>{art.description}</p>
+                      
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginTop: 'auto',
+                        borderTop: '1px solid var(--border-color)',
+                        paddingTop: '12px',
+                        flexShrink: 0
+                      }}>
+                        <span style={{ fontFamily: 'var(--font-heading)', fontSize: '1.25rem', fontWeight: 700, color: '#fff' }}>
+                          Ksh {parseFloat(art.price).toLocaleString()}
+                        </span>
+                        {!art.is_sold ? (
+                          <button 
+                            onClick={() => showToast(`Simulated acquiring: "${art.title}"! We have received your purchase intent.`)}
+                            className="btn btn-gold" 
+                            style={{ padding: '8px 16px', fontSize: '0.85rem', flexShrink: 0 }}
+                          >
+                            <ShoppingBag size={14} /> Buy Piece
+                          </button>
+                        ) : (
+                          <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Private Collection</span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))
