@@ -192,7 +192,7 @@ export default function FineArts() {
                       overflow: 'hidden'
                     }}
                   >
-                    {/* Image Wrap - FIXED with proper isolation */}
+                    {/* Image Wrap with click handler for lightbox */}
                     <div 
                       style={{
                         position: 'relative',
@@ -236,24 +236,25 @@ export default function FineArts() {
                           No Image Available
                         </div>
                       )}
-                      {/* Magnifying glass icon - always visible */}
+                      {/* Magnifying glass icon - positioned inside image */}
                       <div style={{
                         position: 'absolute',
-                        bottom: '12px',
-                        right: '12px',
-                        background: 'rgba(0,0,0,0.6)',
+                        bottom: '8px',
+                        right: '10px',
+                        background: 'rgba(0,0,0,0.7)',
                         borderRadius: '50%',
-                        width: '34px',
-                        height: '34px',
+                        width: '32px',
+                        height: '32px',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         backdropFilter: 'blur(4px)',
-                        border: '1px solid rgba(255,255,255,0.1)',
+                        border: '1px solid rgba(255,255,255,0.15)',
                         pointerEvents: 'none',
-                        zIndex: 5
+                        zIndex: 5,
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
                       }}>
-                        <span style={{ fontSize: '16px', color: '#fff' }}>🔍</span>
+                        <span style={{ fontSize: '15px', color: '#fff', lineHeight: 1 }}>🔍</span>
                       </div>
                       {art.is_sold && (
                         <div style={{

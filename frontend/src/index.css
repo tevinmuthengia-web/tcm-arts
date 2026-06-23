@@ -784,3 +784,54 @@ textarea.form-control {
   z-index: 1;
 }
 
+/* ============================================
+   FIX: Magnifying glass icon within image only
+   ============================================ */
+
+/* Ensure the image container is the stacking context */
+.glass-card.glow-art > div:first-child {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+/* Magnifying glass icon - keep inside image */
+.glass-card.glow-art > div:first-child > div:nth-child(3) {
+  position: absolute !important;
+  bottom: 8px !important;
+  right: 10px !important;
+  background: rgba(0, 0, 0, 0.7) !important;
+  border-radius: 50% !important;
+  width: 32px !important;
+  height: 32px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  backdrop-filter: blur(4px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  pointer-events: none !important;
+  z-index: 5 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Ensure description stays below image */
+.glass-card.glow-art > div:last-child {
+  position: relative !important;
+  z-index: 1 !important;
+  margin-top: 0 !important;
+}
+
+/* Fix for mobile */
+@media (max-width: 768px) {
+  .glass-card.glow-art > div:first-child > div:nth-child(3) {
+    bottom: 6px !important;
+    right: 8px !important;
+    width: 28px !important;
+    height: 28px !important;
+  }
+  .glass-card.glow-art > div:first-child > div:nth-child(3) span {
+    font-size: 13px !important;
+  }
+}
+
