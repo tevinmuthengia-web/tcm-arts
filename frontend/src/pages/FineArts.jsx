@@ -14,6 +14,11 @@ export default function FineArts() {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
+  // Purchase state
+  const [purchasingArt, setPurchasingArt] = useState(null);
+  const [showPurchaseModal, setShowPurchaseModal] = useState(false);
+  const [isPurchasing, setIsPurchasing] = useState(false);
+
   // Commission Form State
   const [medium, setMedium] = useState('Oil on Canvas');
   const [size, setSize] = useState('16x20 inches');
@@ -114,6 +119,59 @@ export default function FineArts() {
     }
   };
 
+  const handlePurchase = async (art) => {
+    if (!user) {
+      setAuthModalTab('login');
+      setShowAuthModal(true);
+      showToast("Please login to purchase artwork.", "error");
+      return;
+    }
+
+    setPurchasingArt(art);
+    setShowPurchaseModal(true);
+  };
+
+  const confirmPurchase = async () => {
+    if (!purchasingArt) return;
+    
+    setIsPurchasing(true);
+    try {
+      const token = localStorage.getItem('tcm_token');
+      if (!token) {
+        showToast('Please log in to purchase artwork.', 'error');
+        setShowPurchaseModal(false);
+        return;
+      }
+
+      const response = await fetch(`/api/gallery/${purchasingArt.id}/purchase`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        showToast(`✅ ${data.message}`);
+        setShowPurchaseModal(false);
+        await fetchArtData(); // Refresh gallery
+        // Update the gallery to show the SOLD badge
+        setGallery(prev => prev.map(item => 
+          item.id === purchasingArt.id ? { ...item, is_sold: true } : item
+        ));
+      } else {
+        showToast(data.error || 'Purchase failed', 'error');
+      }
+    } catch (error) {
+      console.error('Purchase error:', error);
+      showToast('Network error. Please try again.', 'error');
+    } finally {
+      setIsPurchasing(false);
+      setPurchasingArt(null);
+    }
+  };
+
   const pageTexts = siteContent?.fineArts || {
     title: "Fine Arts Studio",
     description: "Unleash your creativity and master visual expression. From classical commissions to contemporary classes, explore art in its purest forms.",
@@ -192,7 +250,7 @@ export default function FineArts() {
                       overflow: 'hidden'
                     }}
                   >
-                    {/* Image Wrap with click handler for lightbox */}
+                    {/* Image Wrap */}
                     <div 
                       style={{
                         position: 'relative',
@@ -236,7 +294,7 @@ export default function FineArts() {
                           No Image Available
                         </div>
                       )}
-                      {/* Magnifying glass icon - positioned inside image */}
+                      {/* Magnifying glass icon */}
                       <div style={{
                         position: 'absolute',
                         bottom: '8px',
@@ -279,7 +337,7 @@ export default function FineArts() {
                       )}
                     </div>
 
-                    {/* Details - SEPARATED BELOW IMAGE */}
+                    {/* Details */}
                     <div style={{
                       display: 'flex',
                       flexDirection: 'column',
@@ -305,7 +363,7 @@ export default function FineArts() {
                         </span>
                         {!art.is_sold ? (
                           <button 
-                            onClick={() => showToast(`Simulated acquiring: "${art.title}"! We have received your purchase intent.`)}
+                            onClick={() => handlePurchase(art)}
                             className="btn btn-gold" 
                             style={{ padding: '8px 16px', fontSize: '0.85rem', flexShrink: 0 }}
                           >
@@ -478,7 +536,7 @@ export default function FineArts() {
       </div>
 
       {/* ============================================
-          LIGHTBOX MODAL - FIXED LAYOUT
+          LIGHTBOX MODAL
           ============================================ */}
       {lightboxOpen && (
         <div
@@ -588,7 +646,7 @@ export default function FineArts() {
             </button>
           )}
 
-          {/* Image + Info container - FIXED: column layout */}
+          {/* Image container */}
           <div
             style={{
               display: 'flex',
@@ -601,7 +659,6 @@ export default function FineArts() {
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Image container */}
             <div
               style={{
                 display: 'flex',
@@ -629,7 +686,6 @@ export default function FineArts() {
               )}
             </div>
 
-            {/* Image info - NOW BELOW THE IMAGE */}
             {gallery[currentImageIndex] && (
               <div
                 style={{
@@ -659,6 +715,106 @@ export default function FineArts() {
                 </p>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ============================================
+          PURCHASE CONFIRMATION MODAL
+          ============================================ */}
+      {showPurchaseModal && purchasingArt && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.9)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px'
+          }}
+          onClick={() => setShowPurchaseModal(false)}
+        >
+          <div
+            style={{
+              background: 'var(--bg-secondary)',
+              borderRadius: '24px',
+              padding: '32px',
+              maxWidth: '500px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              border: '1px solid var(--border-color)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 style={{ margin: 0, color: '#fff' }}>Confirm Purchase</h3>
+              <button
+                onClick={() => setShowPurchaseModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-secondary)',
+                  fontSize: '1.5rem',
+                  cursor: 'pointer'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <img
+                src={purchasingArt.image_url}
+                alt={purchasingArt.title}
+                style={{
+                  width: '100%',
+                  height: '200px',
+                  objectFit: 'cover',
+                  borderRadius: '12px',
+                  marginBottom: '16px'
+                }}
+              />
+              <h4 style={{ color: '#fff', marginBottom: '4px' }}>{purchasingArt.title}</h4>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '8px' }}>{purchasingArt.medium}</p>
+              <p style={{ color: 'var(--gold)', fontSize: '1.2rem', fontWeight: 'bold' }}>
+                Ksh {parseFloat(purchasingArt.price).toLocaleString()}
+              </p>
+            </div>
+
+            <div style={{ marginBottom: '20px', padding: '16px', background: 'rgba(212,175,55,0.05)', borderRadius: '12px' }}>
+              <h4 style={{ color: '#d4af37', fontSize: '0.9rem', marginBottom: '8px' }}>Payment Instructions</h4>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: 0 }}>
+                Complete your purchase via M-Pesa:
+              </p>
+              <ol style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', paddingLeft: '20px', marginTop: '8px' }}>
+                <li>Send Ksh {parseFloat(purchasingArt.price).toLocaleString()} to M-Pesa Paybill: <strong>000000</strong></li>
+                <li>Account: <strong>TCMARTS</strong></li>
+                <li>Reference: <strong>ART-{purchasingArt.id}</strong></li>
+              </ol>
+            </div>
+
+            <button
+              onClick={confirmPurchase}
+              disabled={isPurchasing}
+              className="btn btn-gold"
+              style={{ width: '100%', padding: '14px', fontSize: '1rem' }}
+            >
+              {isPurchasing ? 'Processing...' : <><ShoppingBag size={18} style={{ marginRight: '8px' }} /> Confirm Purchase</>}
+            </button>
+
+            <button
+              onClick={() => setShowPurchaseModal(false)}
+              className="btn btn-secondary"
+              style={{ width: '100%', marginTop: '12px' }}
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}
