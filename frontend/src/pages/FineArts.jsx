@@ -156,7 +156,6 @@ export default function FineArts() {
         showToast(`✅ ${data.message}`);
         setShowPurchaseModal(false);
         await fetchArtData(); // Refresh gallery
-        // Update the gallery to show the SOLD badge
         setGallery(prev => prev.map(item => 
           item.id === purchasingArt.id ? { ...item, is_sold: true } : item
         ));
@@ -720,7 +719,7 @@ export default function FineArts() {
       )}
 
       {/* ============================================
-          PURCHASE CONFIRMATION MODAL
+          PURCHASE CONFIRMATION MODAL - UPDATED PAYBILL
           ============================================ */}
       {showPurchaseModal && purchasingArt && (
         <div
@@ -792,11 +791,16 @@ export default function FineArts() {
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: 0 }}>
                 Complete your purchase via M-Pesa:
               </p>
-              <ol style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', paddingLeft: '20px', marginTop: '8px' }}>
-                <li>Send Ksh {parseFloat(purchasingArt.price).toLocaleString()} to M-Pesa Paybill: <strong>000000</strong></li>
-                <li>Account: <strong>TCMARTS</strong></li>
-                <li>Reference: <strong>ART-{purchasingArt.id}</strong></li>
-              </ol>
+              <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', paddingLeft: '20px', marginTop: '8px', lineHeight: '1.8' }}>
+                <p><strong>Business Name:</strong> Teddy Collins Mwangi</p>
+                <p><strong>Paybill:</strong> <span style={{ color: '#d4af37', fontWeight: 'bold' }}>522533</span></p>
+                <p><strong>Account Number:</strong> <span style={{ color: '#d4af37', fontWeight: 'bold' }}>8070026</span></p>
+                <p><strong>Amount:</strong> Ksh {parseFloat(purchasingArt.price).toLocaleString()}</p>
+                <p><strong>Reference:</strong> ART-{purchasingArt.id}</p>
+              </div>
+              <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.75rem', marginTop: '12px' }}>
+                After sending payment, the artwork will be marked as sold and you'll receive a confirmation email.
+              </p>
             </div>
 
             <button
@@ -805,7 +809,7 @@ export default function FineArts() {
               className="btn btn-gold"
               style={{ width: '100%', padding: '14px', fontSize: '1rem' }}
             >
-              {isPurchasing ? 'Processing...' : <><ShoppingBag size={18} style={{ marginRight: '8px' }} /> Confirm Purchase</>}
+              {isPurchasing ? 'Processing...' : <><ShoppingBag size={18} style={{ marginRight: '8px' }} /> I've Sent Payment</>}
             </button>
 
             <button
