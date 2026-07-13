@@ -1,6 +1,6 @@
 // frontend/src/utils/api.js
 
-const API_BASE = import.meta.env.VITE_API_URL || '';
+const API_BASE = import.meta.env.VITE_API_URL || 'https://tcm-arts-backend.onrender.com';
 
 // Helper function for API requests
 const request = async (endpoint, options = {}) => {
