@@ -643,7 +643,114 @@ app.delete('/api/admin/users/:userId', requireAdmin, async (req, res) => {
 });
 
 
+// ==========================================
+// 6. ARTWORK PURCHASE & M-PESA
+// ==========================================
+
+// Purchase artwork - marks as sold and sends notification
+app.post('/api/gallery/:id/purchase', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  console.log('🔍 ===== PURCHASE REQUEST RECEIVED =====');
+  console.log('Artwork ID:', id);
+  console.log('User:', req.user ? req.user.email : 'Not authenticated');
+  
+  try {
+    // Check if artwork exists and is not sold
+    const artResult = await pool.query('SELECT * FROM gallery WHERE id = $1', [id]);
+    const artwork = artResult.rows[0];
+    
+    console.log('Artwork found:', artwork ? artwork.title : 'NOT FOUND');
+    
+    if (!artwork) {
+      console.log('❌ Artwork not found');
+      return res.status(404).json({ error: 'Artwork not found' });
+    }
+    
+    if (artwork.is_sold) {
+      console.log('❌ Artwork already sold');
+      return res.status(400).json({ error: 'This artwork has already been sold' });
+    }
+    
+    // Mark as sold
+    console.log('✅ Marking artwork as sold...');
+    await pool.query('UPDATE gallery SET is_sold = true WHERE id = $1', [id]);
+    
+    // Get the updated artwork
+    const updatedArt = await pool.query('SELECT * FROM gallery WHERE id = $1', [id]);
+    console.log('✅ Artwork marked as sold successfully!');
+    
+    // Send email notification to admin (if Resend is configured)
+    try {
+      const { sendPurchaseNotification } = require('./services/emailService');
+      const buyer = {
+        name: req.user.name || 'Guest',
+        email: req.user.email || 'No email provided'
+      };
+      await sendPurchaseNotification(artwork, buyer, artwork.price);
+      console.log('✅ Email notification sent to admin');
+    } catch (emailError) {
+      console.error('⚠️ Email notification failed (continuing):', emailError.message);
+      // Continue anyway - the purchase is still successful
+    }
+    
+    // Return the updated artwork
+    res.json({
+      message: `"${artwork.title}" has been marked as sold. Thank you!`,
+      artwork: updatedArt.rows[0],
+      mpesa: {
+        description: `Purchase of ${artwork.title}`,
+        amount: artwork.price,
+        instructions: 'Payment received. Artwork is now reserved for you.'
+      }
+    });
+    console.log('✅ Purchase completed successfully!');
+    console.log('============================================');
+  } catch (error) {
+    console.error('❌ Purchase error:', error);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ error: 'Failed to process purchase: ' + error.message });
+  }
+});
+
+// Get purchase information for an artwork (for checkout)
+app.get('/api/gallery/:id/purchase-info', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    const artResult = await pool.query('SELECT * FROM gallery WHERE id = $1', [id]);
+    const artwork = artResult.rows[0];
+    
+    if (!artwork) {
+      return res.status(404).json({ error: 'Artwork not found' });
+    }
+    
+    if (artwork.is_sold) {
+      return res.status(400).json({ error: 'This artwork has already been sold' });
+    }
+    
+    res.json({
+      artwork: {
+        id: artwork.id,
+        title: artwork.title,
+        price: artwork.price,
+        image_url: artwork.image_url
+      },
+      payment: {
+        method: 'M-Pesa',
+        amount: artwork.price,
+        instructions: `Please send Ksh ${artwork.price.toLocaleString()} to M-Pesa Paybill: 522533 Account: 8070026. Reference: ART-${artwork.id}`
+      }
+    });
+  } catch (error) {
+    console.error('Purchase info error:', error);
+    res.status(500).json({ error: 'Failed to get purchase information' });
+  }
+});
+
+
+// ==========================================
 // Start the server
+// ==========================================
 app.listen(PORT, () => {
   console.log(`============================================`);
   console.log(`🚀 TCM Arts Server running on port ${PORT}`);
