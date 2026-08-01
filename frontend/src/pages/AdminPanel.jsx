@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { api } from '../utils/api';
-import { Edit, Image, Plus, Trash2, Calendar, FileText, CheckCircle2, Shield, User } from 'lucide-react';
+import { Edit, Image, Plus, Trash2, Calendar, FileText, CheckCircle2, Shield, User, ShoppingBag } from 'lucide-react';
 
 export default function AdminPanel() {
   const { siteContent, reloadContent, showToast } = useApp();
@@ -67,6 +67,36 @@ export default function AdminPanel() {
   // 5. Users State
   const [users, setUsers] = useState([]);
 
+  // 6. Products State
+  const [products, setProducts] = useState([]);
+  const [newProdName, setNewProdName] = useState('');
+  const [newProdCategory, setNewProdCategory] = useState('Art Products');
+  const [newProdSubcategory, setNewProdSubcategory] = useState('Canvas Boards');
+  const [newProdPrice, setNewProdPrice] = useState('');
+  const [newProdDesc, setNewProdDesc] = useState('');
+  const [newProdInStock, setNewProdInStock] = useState(true);
+  
+  // Multi-view Image Files / URLs
+  const [newProdFrontFile, setNewProdFrontFile] = useState(null);
+  const [newProdFrontUrl, setNewProdFrontUrl] = useState('');
+  const [newProdRearFile, setNewProdRearFile] = useState(null);
+  const [newProdRearUrl, setNewProdRearUrl] = useState('');
+  const [newProdWholeFile, setNewProdWholeFile] = useState(null);
+  const [newProdWholeUrl, setNewProdWholeUrl] = useState('');
+
+  // Editing Product State
+  const [editingProdId, setEditingProdId] = useState(null);
+  const [editProdName, setEditProdName] = useState('');
+  const [editProdCategory, setEditProdCategory] = useState('Art Products');
+  const [editProdSubcategory, setEditProdSubcategory] = useState('');
+  const [editProdPrice, setEditProdPrice] = useState('');
+  const [editProdDesc, setEditProdDesc] = useState('');
+  const [editProdInStock, setEditProdInStock] = useState(true);
+  // Edit Product Image Files (optional picture replacement)
+  const [editProdFrontFile, setEditProdFrontFile] = useState(null);
+  const [editProdRearFile, setEditProdRearFile] = useState(null);
+  const [editProdWholeFile, setEditProdWholeFile] = useState(null);
+
   const fetchData = async () => {
     try {
       const art = await api.gallery.get();
@@ -77,6 +107,8 @@ export default function AdminPanel() {
       setCommissions(comms);
       const usrList = await api.admin.getUsers();
       setUsers(usrList);
+      const prods = await api.products.get();
+      setProducts(prods);
     } catch (err) {
       console.error("Admin data retrieval error:", err);
     }
@@ -325,6 +357,118 @@ export default function AdminPanel() {
     }
   };
 
+  // Product Management Handlers
+  const handleAddProduct = async (e) => {
+    e.preventDefault();
+    if (!newProdName || !newProdCategory || !newProdPrice || !newProdDesc) {
+      showToast("Please fill all required product fields.", "error");
+      return;
+    }
+
+    const isSkatingShoe = newProdCategory === 'Skating Products' && (newProdSubcategory || '').toLowerCase().includes('shoe');
+    if (isSkatingShoe) {
+      const hasFront = newProdFrontFile || newProdFrontUrl;
+      const hasRear = newProdRearFile || newProdRearUrl;
+      const hasWhole = newProdWholeFile || newProdWholeUrl;
+      if (!hasFront || !hasRear || !hasWhole) {
+        showToast("Skating shoes require a minimum of 3 pictures: Front, Rear, and Whole shoe views.", "error");
+        return;
+      }
+    }
+
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('name', newProdName);
+      formData.append('category', newProdCategory);
+      formData.append('subcategory', newProdSubcategory);
+      formData.append('price', newProdPrice);
+      formData.append('description', newProdDesc);
+      formData.append('inStock', newProdInStock);
+
+      if (newProdFrontFile) formData.append('imageFront', newProdFrontFile);
+      else if (newProdFrontUrl) formData.append('imageFront', newProdFrontUrl);
+
+      if (newProdRearFile) formData.append('imageRear', newProdRearFile);
+      else if (newProdRearUrl) formData.append('imageRear', newProdRearUrl);
+
+      if (newProdWholeFile) formData.append('imageWhole', newProdWholeFile);
+      else if (newProdWholeUrl) formData.append('imageWhole', newProdWholeUrl);
+
+      await api.products.add(formData);
+      showToast("Product added successfully!");
+      setNewProdName('');
+      setNewProdPrice('');
+      setNewProdDesc('');
+      setNewProdFrontFile(null);
+      setNewProdFrontUrl('');
+      setNewProdRearFile(null);
+      setNewProdRearUrl('');
+      setNewProdWholeFile(null);
+      setNewProdWholeUrl('');
+      fetchData();
+    } catch (err) {
+      console.error('Error adding product:', err);
+      showToast(err.message || "Failed to add product.", "error");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleStartEditProduct = (p) => {
+    setEditingProdId(p.id);
+    setEditProdName(p.name);
+    setEditProdCategory(p.category);
+    setEditProdSubcategory(p.subcategory || '');
+    setEditProdPrice(p.price);
+    setEditProdDesc(p.description);
+    setEditProdInStock(p.in_stock);
+    setEditProdFrontFile(null);
+    setEditProdRearFile(null);
+    setEditProdWholeFile(null);
+  };
+
+  const handleSaveProduct = async (id) => {
+    if (!editProdName || !editProdCategory || !editProdPrice || !editProdDesc) {
+      showToast("Please fill all product fields.", "error");
+      return;
+    }
+    try {
+      const formData = new FormData();
+      formData.append('name', editProdName);
+      formData.append('category', editProdCategory);
+      formData.append('subcategory', editProdSubcategory);
+      formData.append('price', parseFloat(editProdPrice));
+      formData.append('description', editProdDesc);
+      formData.append('inStock', editProdInStock);
+
+      if (editProdFrontFile) formData.append('imageFront', editProdFrontFile);
+      if (editProdRearFile) formData.append('imageRear', editProdRearFile);
+      if (editProdWholeFile) formData.append('imageWhole', editProdWholeFile);
+
+      await api.products.edit(id, formData);
+      showToast("Product details updated successfully!");
+      setEditingProdId(null);
+      setEditProdFrontFile(null);
+      setEditProdRearFile(null);
+      setEditProdWholeFile(null);
+      fetchData();
+    } catch (err) {
+      showToast("Failed to update product details.", "error");
+    }
+  };
+
+  const handleDeleteProduct = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this product?")) return;
+    try {
+      await api.products.delete(id);
+      showToast("Product deleted successfully.");
+      fetchData();
+    } catch (err) {
+      showToast("Failed to delete product.", "error");
+    }
+  };
+
   return (
     <div className="animate-fade-in" style={{ padding: '40px 0 80px 0' }}>
       <div className="container">
@@ -346,6 +490,9 @@ export default function AdminPanel() {
           </button>
           <button onClick={() => setActiveTab('gallery')} style={{ padding: '10px 20px', borderRadius: '10px', background: activeTab === 'gallery' ? 'rgba(99,102,241,0.08)' : 'transparent', color: activeTab === 'gallery' ? '#6366f1' : 'var(--text-secondary)', border: activeTab === 'gallery' ? '1px solid rgba(99,102,241,0.3)' : '1px solid transparent', cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Image size={16} /> Art Gallery Manager
+          </button>
+          <button onClick={() => setActiveTab('products')} style={{ padding: '10px 20px', borderRadius: '10px', background: activeTab === 'products' ? 'rgba(236,72,153,0.08)' : 'transparent', color: activeTab === 'products' ? '#ec4899' : 'var(--text-secondary)', border: activeTab === 'products' ? '1px solid rgba(236,72,153,0.3)' : '1px solid transparent', cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <ShoppingBag size={16} /> Products Manager
           </button>
           <button onClick={() => setActiveTab('classes')} style={{ padding: '10px 20px', borderRadius: '10px', background: activeTab === 'classes' ? 'rgba(16,185,129,0.08)' : 'transparent', color: activeTab === 'classes' ? '#10b981' : 'var(--text-secondary)', border: activeTab === 'classes' ? '1px solid rgba(16,185,129,0.3)' : '1px solid transparent', cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Calendar size={16} /> Classes & Slots
@@ -445,6 +592,117 @@ export default function AdminPanel() {
                     )}
                   </div>
                 ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB: PRODUCTS MANAGER (CMS) */}
+        {activeTab === 'products' && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '30px' }} className="grid-2">
+            <form onSubmit={handleAddProduct} className="glass-card" style={{ height: 'fit-content', borderColor: 'rgba(236,72,153,0.2)' }}>
+              <h3 style={{ fontSize: '1.2rem', fontFamily: 'var(--font-heading)', color: '#fff', marginBottom: '20px' }}>➕ Add New Product</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div className="form-group"><label className="form-label">Product Name</label><input type="text" className="form-control" placeholder="E.g., Pro Slalom Inline Skating Shoes" value={newProdName} onChange={(e)=>setNewProdName(e.target.value)} required /></div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }} className="grid-2">
+                  <div className="form-group">
+                    <label className="form-label">Category</label>
+                    <select className="form-control" value={newProdCategory} onChange={(e)=>setNewProdCategory(e.target.value)}>
+                      <option value="Art Products">Art Products</option>
+                      <option value="Skating Products">Skating Products</option>
+                      <option value="Chess Products">Chess Products</option>
+                    </select>
+                  </div>
+                  <div className="form-group"><label className="form-label">Subcategory</label><input type="text" className="form-control" placeholder="E.g., Skating Shoes / Brushes" value={newProdSubcategory} onChange={(e)=>setNewProdSubcategory(e.target.value)} required /></div>
+                </div>
+                <div className="form-group"><label className="form-label">Price (Ksh)</label><input type="number" className="form-control" placeholder="E.g., 28500" value={newProdPrice} onChange={(e)=>setNewProdPrice(e.target.value)} required /></div>
+                <div className="form-group"><label className="form-label">Description</label><textarea className="form-control" rows={3} placeholder="Product details..." value={newProdDesc} onChange={(e)=>setNewProdDesc(e.target.value)} required /></div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                  <input type="checkbox" checked={newProdInStock} onChange={(e)=>setNewProdInStock(e.target.checked)} /> Available In Stock
+                </label>
+                <div className="form-group">
+                  <label className="form-label">Product Pictures (3 Views)</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div><span style={{ fontSize: '0.75rem', color: '#ec4899' }}>Front View</span><input type="file" accept="image/*" onChange={(e) => setNewProdFrontFile(e.target.files[0])} style={{ color: '#fff', fontSize: '0.85rem' }} disabled={isUploading} /></div>
+                    <div><span style={{ fontSize: '0.75rem', color: '#ec4899' }}>Rear View</span><input type="file" accept="image/*" onChange={(e) => setNewProdRearFile(e.target.files[0])} style={{ color: '#fff', fontSize: '0.85rem' }} disabled={isUploading} /></div>
+                    <div><span style={{ fontSize: '0.75rem', color: '#ec4899' }}>Whole Shoe / Any Part</span><input type="file" accept="image/*" onChange={(e) => setNewProdWholeFile(e.target.files[0])} style={{ color: '#fff', fontSize: '0.85rem' }} disabled={isUploading} /></div>
+                    {isUploading && <div style={{ color: '#ec4899', fontSize: '0.8rem' }}>⏳ Uploading... Please wait</div>}
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center' }}>- OR paste public image links below -</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }} className="grid-3">
+                      <input type="text" className="form-control" placeholder="Front URL" value={newProdFrontUrl} onChange={(e)=>setNewProdFrontUrl(e.target.value)} disabled={!!newProdFrontFile || isUploading} />
+                      <input type="text" className="form-control" placeholder="Rear URL" value={newProdRearUrl} onChange={(e)=>setNewProdRearUrl(e.target.value)} disabled={!!newProdRearFile || isUploading} />
+                      <input type="text" className="form-control" placeholder="Whole URL" value={newProdWholeUrl} onChange={(e)=>setNewProdWholeUrl(e.target.value)} disabled={!!newProdWholeFile || isUploading} />
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Note: Skating shoes require a minimum of 3 pictures (Front, Rear & Whole shoe).</div>
+                  </div>
+                </div>
+                <button type="submit" className="btn" style={{ marginTop: '10px', background: 'linear-gradient(135deg, #ec4899, #6366f1)', color: '#fff' }} disabled={isUploading}>{isUploading ? 'Uploading...' : <><Plus size={16} /> Post Product</>}</button>
+              </div>
+            </form>
+
+            <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <h3 style={{ fontSize: '1.2rem', fontFamily: 'var(--font-heading)', color: '#fff' }}>🛍️ Products Catalogue ({products.length})</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxHeight: '600px', overflowY: 'auto' }}>
+                {products.map(p => (
+                  <div key={p.id} style={{ padding: '16px', borderRadius: '12px', backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {editingProdId === p.id ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px' }} className="grid-2">
+                          <input type="text" className="form-control" value={editProdName} onChange={(e) => setEditProdName(e.target.value)} placeholder="Product Name" required />
+                          <input type="number" className="form-control" value={editProdPrice} onChange={(e) => setEditProdPrice(e.target.value)} placeholder="Price (Ksh)" required />
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }} className="grid-2">
+                          <select className="form-control" value={editProdCategory} onChange={(e) => setEditProdCategory(e.target.value)}>
+                            <option value="Art Products">Art Products</option>
+                            <option value="Skating Products">Skating Products</option>
+                            <option value="Chess Products">Chess Products</option>
+                          </select>
+                          <input type="text" className="form-control" value={editProdSubcategory} onChange={(e) => setEditProdSubcategory(e.target.value)} placeholder="Subcategory" required />
+                        </div>
+                        <textarea className="form-control" value={editProdDesc} onChange={(e) => setEditProdDesc(e.target.value)} placeholder="Description" rows={2} required />
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                          <input type="checkbox" checked={editProdInStock} onChange={(e) => setEditProdInStock(e.target.checked)} /> In Stock
+                        </label>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Replace pictures (optional):</span>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }} className="grid-3">
+                            <input type="file" accept="image/*" onChange={(e) => setEditProdFrontFile(e.target.files[0])} style={{ color: '#fff', fontSize: '0.75rem' }} />
+                            <input type="file" accept="image/*" onChange={(e) => setEditProdRearFile(e.target.files[0])} style={{ color: '#fff', fontSize: '0.75rem' }} />
+                            <input type="file" accept="image/*" onChange={(e) => setEditProdWholeFile(e.target.files[0])} style={{ color: '#fff', fontSize: '0.75rem' }} />
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '4px' }}>
+                          <button onClick={() => handleSaveProduct(p.id)} className="btn" style={{ padding: '6px 12px', fontSize: '0.8rem', background: 'rgba(236,72,153,0.15)', color: '#ec4899', border: '1px solid rgba(236,72,153,0.3)' }}>Save</button>
+                          <button onClick={() => setEditingProdId(null)} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.8rem' }}>Cancel</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', width: '100%', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <div style={{ display: 'flex', gap: '4px' }}>
+                            <img src={p.image_front || p.image_url} alt="front" style={{ width: '44px', height: '44px', borderRadius: '6px', objectFit: 'cover', border: '1px solid var(--border-color)' }} />
+                            <img src={p.image_rear || p.image_url} alt="rear" style={{ width: '44px', height: '44px', borderRadius: '6px', objectFit: 'cover', border: '1px solid var(--border-color)' }} />
+                            <img src={p.image_whole || p.image_url} alt="whole" style={{ width: '44px', height: '44px', borderRadius: '6px', objectFit: 'cover', border: '1px solid var(--border-color)' }} />
+                          </div>
+                          <div>
+                            <h4 style={{ color: '#fff', fontSize: '0.95rem', margin: 0 }}>{p.name}</h4>
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px', flexWrap: 'wrap' }}>
+                              <span className="badge" style={{ fontSize: '0.65rem', background: 'rgba(236,72,153,0.15)', color: '#ec4899' }}>{p.category}</span>
+                              {p.subcategory && <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>{p.subcategory}</span>}
+                              <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Ksh {Number(p.price).toLocaleString()}</span>
+                              <span style={{ fontSize: '0.7rem', color: p.in_stock ? '#10b981' : '#ef4444', fontWeight: 600 }}>{p.in_stock ? 'In Stock' : 'Out of Stock'}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          <button onClick={() => handleStartEditProduct(p)} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}><Edit size={12} /> Edit</button>
+                          <button onClick={() => handleDeleteProduct(p.id)} className="btn btn-danger" style={{ padding: '6px 10px' }}><Trash2 size={14} /></button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+                {products.length === 0 && (<div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--text-muted)' }}>No products yet. Add your first product using the form.</div>)}
               </div>
             </div>
           </div>
