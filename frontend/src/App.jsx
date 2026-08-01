@@ -9,6 +9,7 @@ import Home from './pages/Home';
 import FineArts from './pages/FineArts';
 import Skating from './pages/Skating';
 import Chess from './pages/Chess';
+import Products from './pages/Products';
 import Dashboard from './pages/Dashboard';
 import AdminPanel from './pages/AdminPanel';
 import Bookings from './pages/Bookings';
@@ -41,6 +42,7 @@ function AppContent() {
         <Route path="/fine-arts" element={<FineArts />} />
         <Route path="/skating" element={<Skating />} />
         <Route path="/chess" element={<Chess />} />
+        <Route path="/products" element={<Products />} />
         <Route path="/dashboard" element={user ? <Dashboard /> : <Navigate to="/" />} />
         <Route path="/admin" element={user?.role === 'admin' ? <AdminPanel /> : <Navigate to="/" />} />
         <Route path="/bookings" element={user ? <Bookings /> : <Navigate to="/" />} />

@@ -140,6 +140,41 @@ const commissions = {
     }),
 };
 
+// Products API
+const products = {
+  get: () => request('/api/products'),
+  add: (formData) => {
+    const token = localStorage.getItem('tcm_token');
+    return fetch(`${API_BASE}/api/products`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: formData,
+    }).then(async (res) => {
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      return data;
+    });
+  },
+  edit: (id, formData) => {
+    const token = localStorage.getItem('tcm_token');
+    return fetch(`${API_BASE}/api/products/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: formData,
+    }).then(async (res) => {
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      return data;
+    });
+  },
+  delete: (id) => 
+    request(`/api/products/${id}`, { method: 'DELETE' }),
+};
+
 // Admin API
 const admin = {
   getUsers: () => request('/api/admin/users'),
@@ -154,5 +189,7 @@ export const api = {
   classes,
   bookings,
   commissions,
+  products,
   admin,
 };
+

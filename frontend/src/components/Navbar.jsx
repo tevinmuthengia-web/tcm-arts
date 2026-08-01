@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { Palette, Compass, Crown, User, Settings, LogOut, Menu, X, Sparkles } from 'lucide-react';
+import { Palette, Compass, Crown, ShoppingBag, User, Settings, LogOut, Menu, X, Sparkles } from 'lucide-react';
 
 export default function Navbar() {
   const { user, setUser, setShowAuthModal, setAuthModalTab, showToast } = useApp();
@@ -112,6 +112,27 @@ export default function Navbar() {
             }}
           >
             <Crown size={16} /> Chess
+          </Link>
+
+          <Link 
+            to="/products" 
+            className="nav-link"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              color: isActive('/products') ? '#ec4899' : 'var(--text-secondary)',
+              textDecoration: 'none',
+              padding: '8px 16px',
+              borderRadius: '10px',
+              fontWeight: 500,
+              fontSize: '0.95rem',
+              transition: 'all 0.3s ease',
+              background: isActive('/products') ? 'rgba(236,72,153,0.08)' : 'transparent',
+              border: isActive('/products') ? '1px solid rgba(236,72,153,0.2)' : '1px solid transparent'
+            }}
+          >
+            <ShoppingBag size={16} /> Products
           </Link>
 
           <Link 
@@ -275,6 +296,9 @@ export default function Navbar() {
           </Link>
           <Link to="/chess" style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#fff', textDecoration: 'none', padding: '10px 0' }} onClick={() => setMobileMenuOpen(false)}>
             <Crown size={18} color="#10b981" /> Chess
+          </Link>
+          <Link to="/products" style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#fff', textDecoration: 'none', padding: '10px 0' }} onClick={() => setMobileMenuOpen(false)}>
+            <ShoppingBag size={18} color="#ec4899" /> Products
           </Link>
           <Link to="/bookings" style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#fff', textDecoration: 'none', padding: '10px 0' }} onClick={() => setMobileMenuOpen(false)}>
             <Sparkles size={18} color="#d4af37" /> Book Now
