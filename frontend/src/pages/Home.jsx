@@ -336,7 +336,7 @@ export default function Home() {
 
                   {/* Instagram button */}
                   <a
-                    href="https://www.instagram.com/thecommonmass?igsh=MTBtZGhjOWwxYXk4aA=="
+                    href="https://www.instagram.com/_tcm.art"
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{

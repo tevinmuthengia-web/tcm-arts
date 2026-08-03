@@ -43,7 +43,7 @@ export default function Footer() {
             {/* Instagram & WhatsApp Action Buttons */}
             <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
               <a 
-                href="https://www.instagram.com/thecommonmass?igsh=MTBtZGhjOWwxYXk4aA==" 
+                href="https://www.instagram.com/_tcm.art"
                 target="_blank" 
                 rel="noopener noreferrer"
                 title="Follow us on Instagram"
@@ -107,6 +107,7 @@ export default function Footer() {
             <h4 style={{ color: '#fff', fontFamily: 'var(--font-heading)', fontWeight: 600, fontSize: '1rem', marginBottom: '16px' }}>Quick Links</h4>
             <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.9rem', padding: 0 }}>
               <li><Link to="/" style={{ color: 'inherit', textDecoration: 'none' }}>Home</Link></li>
+              <li><Link to="/products" style={{ color: 'inherit', textDecoration: 'none' }}>Products Store</Link></li>
               <li><Link to="/dashboard" style={{ color: 'inherit', textDecoration: 'none' }}>My Bookings</Link></li>
               <li><Link to="/admin" style={{ color: 'inherit', textDecoration: 'none' }}>Admin Login</Link></li>
             </ul>
