@@ -176,6 +176,138 @@ app.get('/api/classes', async (req, res) => {
   }
 });
 
+// Get all products
+app.get('/api/products', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM products ORDER BY created_at DESC');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Products error:', error);
+    res.status(500).json({ error: 'Failed to fetch products' });
+  }
+});
+
+// Add new product (Admin)
+app.post('/api/products', requireAdmin, upload.any(), async (req, res) => {
+  const { name, category, subcategory, description, price, inStock } = req.body;
+
+  if (!name || !category || !price) {
+    return res.status(400).json({ error: 'Name, category, and price are required' });
+  }
+
+  try {
+    let imageUrl = req.body.imageUrl || '';
+    let imageFront = req.body.imageFront || '';
+    let imageRear = req.body.imageRear || '';
+    let imageWhole = req.body.imageWhole || '';
+
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+        const uploaded = await uploadToCloudinary(file.buffer);
+        if (file.fieldname === 'imageFront') imageFront = uploaded.secure_url;
+        else if (file.fieldname === 'imageRear') imageRear = uploaded.secure_url;
+        else if (file.fieldname === 'imageWhole') imageWhole = uploaded.secure_url;
+        else if (file.fieldname === 'image') imageUrl = uploaded.secure_url;
+      }
+    }
+
+    if (!imageUrl) imageUrl = imageWhole || imageFront || imageRear || '';
+    if (!imageFront) imageFront = imageUrl;
+    if (!imageRear) imageRear = imageUrl;
+    if (!imageWhole) imageWhole = imageUrl;
+
+    const newId = 'prod-' + Date.now();
+    const isStockBool = inStock === 'false' || inStock === false ? false : true;
+
+    await pool.query(
+      `INSERT INTO products (id, name, category, subcategory, description, price, image_url, image_front, image_rear, image_whole, in_stock, created_at) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+      [newId, name, category, subcategory || '', description || '', parseFloat(price), imageUrl, imageFront, imageRear, imageWhole, isStockBool, new Date().toISOString()]
+    );
+
+    const result = await pool.query('SELECT * FROM products WHERE id = $1', [newId]);
+    res.status(201).json({ message: 'Product added successfully!', product: result.rows[0] });
+  } catch (error) {
+    console.error('Add product error:', error);
+    res.status(500).json({ error: 'Failed to add product: ' + error.message });
+  }
+});
+
+// Edit product (Admin)
+app.put('/api/products/:id', requireAdmin, upload.any(), async (req, res) => {
+  const { id } = req.params;
+  const { name, category, subcategory, description, price, inStock } = req.body;
+
+  try {
+    let imageUrl = req.body.imageUrl || null;
+    let imageFront = req.body.imageFront || null;
+    let imageRear = req.body.imageRear || null;
+    let imageWhole = req.body.imageWhole || null;
+
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+        const uploaded = await uploadToCloudinary(file.buffer);
+        if (file.fieldname === 'imageFront') imageFront = uploaded.secure_url;
+        else if (file.fieldname === 'imageRear') imageRear = uploaded.secure_url;
+        else if (file.fieldname === 'imageWhole') imageWhole = uploaded.secure_url;
+        else if (file.fieldname === 'image') imageUrl = uploaded.secure_url;
+      }
+    }
+
+    const isStockBool = inStock !== undefined && inStock !== null && inStock !== '' ? (inStock === 'true' || inStock === true) : null;
+
+    await pool.query(
+      `UPDATE products SET 
+        name = COALESCE($1, name),
+        category = COALESCE($2, category),
+        subcategory = COALESCE($3, subcategory),
+        description = COALESCE($4, description),
+        price = COALESCE($5, price),
+        image_url = COALESCE($6, image_url),
+        image_front = COALESCE($7, image_front),
+        image_rear = COALESCE($8, image_rear),
+        image_whole = COALESCE($9, image_whole),
+        in_stock = COALESCE($10, in_stock)
+       WHERE id = $11`,
+      [
+        name || null,
+        category || null,
+        subcategory || null,
+        description || null,
+        price ? parseFloat(price) : null,
+        imageUrl,
+        imageFront,
+        imageRear,
+        imageWhole,
+        isStockBool,
+        id
+      ]
+    );
+
+    const result = await pool.query('SELECT * FROM products WHERE id = $1', [id]);
+    res.json({ message: 'Product updated successfully!', product: result.rows[0] });
+  } catch (error) {
+    console.error('Update product error:', error);
+    res.status(500).json({ error: 'Failed to update product: ' + error.message });
+  }
+});
+
+// Delete product (Admin)
+app.delete('/api/products/:id', requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query('DELETE FROM products WHERE id = $1 RETURNING *', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+    res.json({ message: 'Product deleted successfully!' });
+  } catch (error) {
+    console.error('Delete product error:', error);
+    res.status(500).json({ error: 'Failed to delete product' });
+  }
+});
+
+
 
 // ==========================================
 // 3. ADMIN CONTENT MANAGEMENT (CMS) ENDPOINTS
@@ -747,6 +879,128 @@ app.get('/api/gallery/:id/purchase-info', authenticateToken, async (req, res) =>
   }
 });
 
+
+// ==========================================
+// 7. PRODUCTS SEEDING & DATABASE TABLE INIT
+// ==========================================
+const initProductsTable = async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS products (
+        id VARCHAR(255) PRIMARY KEY,
+        name TEXT NOT NULL,
+        category TEXT NOT NULL,
+        subcategory TEXT,
+        description TEXT,
+        price NUMERIC NOT NULL,
+        image_url TEXT,
+        image_front TEXT,
+        image_rear TEXT,
+        image_whole TEXT,
+        in_stock BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    const countRes = await pool.query('SELECT COUNT(*) FROM products');
+    if (parseInt(countRes.rows[0].count, 10) === 0) {
+      console.log('🌱 Seeding initial products data into database...');
+      const seedProducts = [
+        {
+          id: 'prod-skate-1',
+          name: 'Pro Slalom Inline Skating Shoes',
+          category: 'Skating Products',
+          subcategory: 'Skating Shoes',
+          description: 'High-performance carbon slalom inline skates with pre-rockered CNC frames, micro-adjustable aluminum buckles, and high-rebound 85A wheels for precision cone maneuvering.',
+          price: 28500,
+          image_url: 'https://images.unsplash.com/photo-1552346154-21d32810aba3?q=80&w=800&auto=format&fit=crop',
+          image_front: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=800&auto=format&fit=crop',
+          image_rear: 'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?q=80&w=800&auto=format&fit=crop',
+          image_whole: 'https://images.unsplash.com/photo-1552346154-21d32810aba3?q=80&w=800&auto=format&fit=crop',
+          in_stock: true
+        },
+        {
+          id: 'prod-skate-2',
+          name: 'Apex Carbon Speed Skating Shoes',
+          category: 'Skating Products',
+          subcategory: 'Skating Shoes',
+          description: 'Elite speed skating shoes engineered with heat-moldable carbon fiber shell, premium memory foam lining, and ultra-durable precision bearings.',
+          price: 34000,
+          image_url: 'https://images.unsplash.com/photo-1600185365483-26d7a4cc7519?q=80&w=800&auto=format&fit=crop',
+          image_front: 'https://images.unsplash.com/photo-1608231387042-66d1773070a5?q=80&w=800&auto=format&fit=crop',
+          image_rear: 'https://images.unsplash.com/photo-1584735935682-2f2b69dff9d2?q=80&w=800&auto=format&fit=crop',
+          image_whole: 'https://images.unsplash.com/photo-1600185365483-26d7a4cc7519?q=80&w=800&auto=format&fit=crop',
+          in_stock: true
+        },
+        {
+          id: 'prod-art-1',
+          name: 'Stretched Cotton Canvas Boards (Pack of 5)',
+          category: 'Art Products',
+          subcategory: 'Canvas Boards',
+          description: '100% pure cotton stretched canvas boards, triple primed with acid-free acrylic gesso. Exceptional texture for oil & acrylic painting.',
+          price: 3500,
+          image_url: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?q=80&w=800&auto=format&fit=crop',
+          image_front: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?q=80&w=800&auto=format&fit=crop',
+          image_rear: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?q=80&w=800&auto=format&fit=crop',
+          image_whole: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?q=80&w=800&auto=format&fit=crop',
+          in_stock: true
+        },
+        {
+          id: 'prod-art-2',
+          name: 'Masterstroke Fine Artist Brush Set',
+          category: 'Art Products',
+          subcategory: 'Brushes',
+          description: 'Professional synthetic & hog bristle artist brush collection in flat, filbert, round, and fine detail sizes for oil, acrylic, and watercolor creation.',
+          price: 2800,
+          image_url: 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?q=80&w=800&auto=format&fit=crop',
+          image_front: 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?q=80&w=800&auto=format&fit=crop',
+          image_rear: 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?q=80&w=800&auto=format&fit=crop',
+          image_whole: 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?q=80&w=800&auto=format&fit=crop',
+          in_stock: true
+        },
+        {
+          id: 'prod-art-3',
+          name: 'TCM Arts Studio Signature T-Shirt',
+          category: 'Art Products',
+          subcategory: 'T-Shirts',
+          description: 'Premium 100% heavyweight combed cotton t-shirt featuring exclusive TCM Arts creative logo embroidery.',
+          price: 1800,
+          image_url: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?q=80&w=800&auto=format&fit=crop',
+          image_front: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?q=80&w=800&auto=format&fit=crop',
+          image_rear: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?q=80&w=800&auto=format&fit=crop',
+          image_whole: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?q=80&w=800&auto=format&fit=crop',
+          in_stock: true
+        },
+        {
+          id: 'prod-skate-3',
+          name: 'TCM Slalom Academy Performance Tee',
+          category: 'Skating Products',
+          subcategory: 'T-Shirts',
+          description: 'Breathable, moisture-wicking athletic tee designed for skating maneuvers and daily slalom training.',
+          price: 2200,
+          image_url: 'https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?q=80&w=800&auto=format&fit=crop',
+          image_front: 'https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?q=80&w=800&auto=format&fit=crop',
+          image_rear: 'https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?q=80&w=800&auto=format&fit=crop',
+          image_whole: 'https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?q=80&w=800&auto=format&fit=crop',
+          in_stock: true
+        }
+      ];
+
+      for (const item of seedProducts) {
+        await pool.query(`
+          INSERT INTO products (id, name, category, subcategory, description, price, image_url, image_front, image_rear, image_whole, in_stock, created_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+        `, [item.id, item.name, item.category, item.subcategory, item.description, item.price, item.image_url, item.image_front, item.image_rear, item.image_whole, item.in_stock]);
+      }
+      console.log('✅ Default products seeded successfully!');
+    }
+  } catch (err) {
+    console.error('Error initializing products table:', err);
+  }
+};
+
+// Initialize products table on startup
+initProductsTable();
 
 // ==========================================
 // Start the server
