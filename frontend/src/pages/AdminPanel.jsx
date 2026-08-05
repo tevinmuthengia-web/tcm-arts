@@ -3,6 +3,66 @@ import { useApp } from '../context/AppContext';
 import { api } from '../utils/api';
 import { Edit, Image, Plus, Trash2, Calendar, FileText, CheckCircle2, Shield, User, ShoppingBag } from 'lucide-react';
 
+// Compresses/resizes an image file client-side for faster, more reliable uploads.
+const compressImage = (file, maxSize = 1280, quality = 0.82) => {
+  return new Promise((resolve) => {
+    if (!file || !file.type || !file.type.startsWith('image/')) { resolve(file); return; }
+    const reader = new FileReader();
+    reader.onerror = () => resolve(file);
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onerror = () => resolve(file);
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxSize || height > maxSize) {
+          if (width >= height) {
+            height = Math.round((height * maxSize) / width);
+            width = maxSize;
+          } else {
+            width = Math.round((width * maxSize) / height);
+            height = maxSize;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob((blob) => {
+          if (blob) {
+            resolve(new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' }));
+          } else {
+            resolve(file);
+          }
+        }, 'image/jpeg', quality);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+};
+
+// Retries a network call on connection failures (handles Render free-tier cold starts).
+const withNetworkRetry = async (fn, { retries = 1, delayMs = 4000 } = {}) => {
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      const transient = /failed to fetch|network|load failed/i.test(err.message || '');
+      if (transient && attempt < retries) {
+        await new Promise((r) => setTimeout(r, delayMs));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr;
+};
+
+const isNetworkError = (msg = '') => /failed to fetch|network|load failed/i.test(msg);
+
 export default function AdminPanel() {
   const { siteContent, reloadContent, showToast } = useApp();
   const [activeTab, setActiveTab] = useState('text');
@@ -97,21 +157,25 @@ export default function AdminPanel() {
   const [editProdRearFile, setEditProdRearFile] = useState(null);
   const [editProdWholeFile, setEditProdWholeFile] = useState(null);
 
-  const fetchData = async () => {
+  const fetchProducts = async () => {
     try {
-      const art = await api.gallery.get();
-      setGallery(art);
-      const cls = await api.classes.get();
-      setClasses(cls);
-      const comms = await api.commissions.getAll();
-      setCommissions(comms);
-      const usrList = await api.admin.getUsers();
-      setUsers(usrList);
       const prods = await api.products.get();
       setProducts(prods);
     } catch (err) {
-      console.error("Admin data retrieval error:", err);
+      console.error('Products fetch error:', err);
     }
+  };
+
+  const fetchData = async () => {
+    // Fetch each dataset independently so one failure (e.g. on a cold backend)
+    // does not block the others from updating.
+    await Promise.all([
+      api.gallery.get().then(setGallery).catch((e) => console.error('Gallery fetch error:', e)),
+      api.classes.get().then(setClasses).catch((e) => console.error('Classes fetch error:', e)),
+      api.commissions.getAll().then(setCommissions).catch((e) => console.error('Commissions fetch error:', e)),
+      api.admin.getUsers().then(setUsers).catch((e) => console.error('Users fetch error:', e)),
+      api.products.get().then(setProducts).catch((e) => console.error('Products fetch error:', e)),
+    ]);
   };
 
   useEffect(() => {
@@ -378,24 +442,30 @@ export default function AdminPanel() {
 
     setIsUploading(true);
     try {
-      const formData = new FormData();
-      formData.append('name', newProdName);
-      formData.append('category', newProdCategory);
-      formData.append('subcategory', newProdSubcategory);
-      formData.append('price', newProdPrice);
-      formData.append('description', newProdDesc);
-      formData.append('inStock', newProdInStock);
+      // Compress images client-side for a much faster, more reliable upload.
+      const frontImg = newProdFrontFile ? await compressImage(newProdFrontFile) : null;
+      const rearImg = newProdRearFile ? await compressImage(newProdRearFile) : null;
+      const wholeImg = newProdWholeFile ? await compressImage(newProdWholeFile) : null;
 
-      if (newProdFrontFile) formData.append('imageFront', newProdFrontFile);
-      else if (newProdFrontUrl) formData.append('imageFront', newProdFrontUrl);
+      const buildForm = () => {
+        const formData = new FormData();
+        formData.append('name', newProdName);
+        formData.append('category', newProdCategory);
+        formData.append('subcategory', newProdSubcategory);
+        formData.append('price', newProdPrice);
+        formData.append('description', newProdDesc);
+        formData.append('inStock', newProdInStock);
+        if (frontImg) formData.append('imageFront', frontImg);
+        else if (newProdFrontUrl) formData.append('imageFront', newProdFrontUrl);
+        if (rearImg) formData.append('imageRear', rearImg);
+        else if (newProdRearUrl) formData.append('imageRear', newProdRearUrl);
+        if (wholeImg) formData.append('imageWhole', wholeImg);
+        else if (newProdWholeUrl) formData.append('imageWhole', newProdWholeUrl);
+        return formData;
+      };
 
-      if (newProdRearFile) formData.append('imageRear', newProdRearFile);
-      else if (newProdRearUrl) formData.append('imageRear', newProdRearUrl);
-
-      if (newProdWholeFile) formData.append('imageWhole', newProdWholeFile);
-      else if (newProdWholeUrl) formData.append('imageWhole', newProdWholeUrl);
-
-      await api.products.add(formData);
+      // Retry once on network failure (Render free-tier backend may need to wake up).
+      await withNetworkRetry(() => api.products.add(buildForm()));
       showToast("Product added successfully!");
       setNewProdName('');
       setNewProdPrice('');
@@ -406,10 +476,13 @@ export default function AdminPanel() {
       setNewProdRearUrl('');
       setNewProdWholeFile(null);
       setNewProdWholeUrl('');
-      fetchData();
+      await fetchProducts();
     } catch (err) {
       console.error('Error adding product:', err);
-      showToast(err.message || "Failed to add product.", "error");
+      showToast(
+        isNetworkError(err?.message) ? "Upload failed — the server was asleep. Please try again." : (err.message || "Failed to add product."),
+        "error"
+      );
     } finally {
       setIsUploading(false);
     }
@@ -434,27 +507,36 @@ export default function AdminPanel() {
       return;
     }
     try {
-      const formData = new FormData();
-      formData.append('name', editProdName);
-      formData.append('category', editProdCategory);
-      formData.append('subcategory', editProdSubcategory);
-      formData.append('price', parseFloat(editProdPrice));
-      formData.append('description', editProdDesc);
-      formData.append('inStock', editProdInStock);
+      const frontImg = editProdFrontFile ? await compressImage(editProdFrontFile) : null;
+      const rearImg = editProdRearFile ? await compressImage(editProdRearFile) : null;
+      const wholeImg = editProdWholeFile ? await compressImage(editProdWholeFile) : null;
 
-      if (editProdFrontFile) formData.append('imageFront', editProdFrontFile);
-      if (editProdRearFile) formData.append('imageRear', editProdRearFile);
-      if (editProdWholeFile) formData.append('imageWhole', editProdWholeFile);
+      const buildForm = () => {
+        const formData = new FormData();
+        formData.append('name', editProdName);
+        formData.append('category', editProdCategory);
+        formData.append('subcategory', editProdSubcategory);
+        formData.append('price', parseFloat(editProdPrice));
+        formData.append('description', editProdDesc);
+        formData.append('inStock', editProdInStock);
+        if (frontImg) formData.append('imageFront', frontImg);
+        if (rearImg) formData.append('imageRear', rearImg);
+        if (wholeImg) formData.append('imageWhole', wholeImg);
+        return formData;
+      };
 
-      await api.products.edit(id, formData);
+      await withNetworkRetry(() => api.products.edit(id, buildForm()));
       showToast("Product details updated successfully!");
       setEditingProdId(null);
       setEditProdFrontFile(null);
       setEditProdRearFile(null);
       setEditProdWholeFile(null);
-      fetchData();
+      await fetchProducts();
     } catch (err) {
-      showToast("Failed to update product details.", "error");
+      showToast(
+        isNetworkError(err?.message) ? "Update failed — the server was asleep. Please try again." : "Failed to update product details.",
+        "error"
+      );
     }
   };
 
@@ -463,7 +545,7 @@ export default function AdminPanel() {
     try {
       await api.products.delete(id);
       showToast("Product deleted successfully.");
-      fetchData();
+      await fetchProducts();
     } catch (err) {
       showToast("Failed to delete product.", "error");
     }
