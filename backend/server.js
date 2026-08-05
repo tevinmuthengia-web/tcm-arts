@@ -881,7 +881,7 @@ app.get('/api/gallery/:id/purchase-info', authenticateToken, async (req, res) =>
 
 
 // ==========================================
-// 7. PRODUCTS SEEDING & DATABASE TABLE INIT
+// 7. PRODUCTS DATABASE TABLE INIT
 // ==========================================
 const initProductsTable = async () => {
   try {
@@ -902,98 +902,11 @@ const initProductsTable = async () => {
       );
     `);
 
-    const countRes = await pool.query('SELECT COUNT(*) FROM products');
-    if (parseInt(countRes.rows[0].count, 10) === 0) {
-      console.log('🌱 Seeding initial products data into database...');
-      const seedProducts = [
-        {
-          id: 'prod-skate-1',
-          name: 'Pro Slalom Inline Skating Shoes',
-          category: 'Skating Products',
-          subcategory: 'Skating Shoes',
-          description: 'High-performance carbon slalom inline skates with pre-rockered CNC frames, micro-adjustable aluminum buckles, and high-rebound 85A wheels for precision cone maneuvering.',
-          price: 28500,
-          image_url: 'https://images.unsplash.com/photo-1552346154-21d32810aba3?q=80&w=800&auto=format&fit=crop',
-          image_front: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=800&auto=format&fit=crop',
-          image_rear: 'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?q=80&w=800&auto=format&fit=crop',
-          image_whole: 'https://images.unsplash.com/photo-1552346154-21d32810aba3?q=80&w=800&auto=format&fit=crop',
-          in_stock: true
-        },
-        {
-          id: 'prod-skate-2',
-          name: 'Apex Carbon Speed Skating Shoes',
-          category: 'Skating Products',
-          subcategory: 'Skating Shoes',
-          description: 'Elite speed skating shoes engineered with heat-moldable carbon fiber shell, premium memory foam lining, and ultra-durable precision bearings.',
-          price: 34000,
-          image_url: 'https://images.unsplash.com/photo-1600185365483-26d7a4cc7519?q=80&w=800&auto=format&fit=crop',
-          image_front: 'https://images.unsplash.com/photo-1608231387042-66d1773070a5?q=80&w=800&auto=format&fit=crop',
-          image_rear: 'https://images.unsplash.com/photo-1584735935682-2f2b69dff9d2?q=80&w=800&auto=format&fit=crop',
-          image_whole: 'https://images.unsplash.com/photo-1600185365483-26d7a4cc7519?q=80&w=800&auto=format&fit=crop',
-          in_stock: true
-        },
-        {
-          id: 'prod-art-1',
-          name: 'Stretched Cotton Canvas Boards (Pack of 5)',
-          category: 'Art Products',
-          subcategory: 'Canvas Boards',
-          description: '100% pure cotton stretched canvas boards, triple primed with acid-free acrylic gesso. Exceptional texture for oil & acrylic painting.',
-          price: 3500,
-          image_url: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?q=80&w=800&auto=format&fit=crop',
-          image_front: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?q=80&w=800&auto=format&fit=crop',
-          image_rear: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?q=80&w=800&auto=format&fit=crop',
-          image_whole: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?q=80&w=800&auto=format&fit=crop',
-          in_stock: true
-        },
-        {
-          id: 'prod-art-2',
-          name: 'Masterstroke Fine Artist Brush Set',
-          category: 'Art Products',
-          subcategory: 'Brushes',
-          description: 'Professional synthetic & hog bristle artist brush collection in flat, filbert, round, and fine detail sizes for oil, acrylic, and watercolor creation.',
-          price: 2800,
-          image_url: 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?q=80&w=800&auto=format&fit=crop',
-          image_front: 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?q=80&w=800&auto=format&fit=crop',
-          image_rear: 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?q=80&w=800&auto=format&fit=crop',
-          image_whole: 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?q=80&w=800&auto=format&fit=crop',
-          in_stock: true
-        },
-        {
-          id: 'prod-art-3',
-          name: 'TCM Arts Studio Signature T-Shirt',
-          category: 'Art Products',
-          subcategory: 'T-Shirts',
-          description: 'Premium 100% heavyweight combed cotton t-shirt featuring exclusive TCM Arts creative logo embroidery.',
-          price: 1800,
-          image_url: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?q=80&w=800&auto=format&fit=crop',
-          image_front: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?q=80&w=800&auto=format&fit=crop',
-          image_rear: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?q=80&w=800&auto=format&fit=crop',
-          image_whole: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?q=80&w=800&auto=format&fit=crop',
-          in_stock: true
-        },
-        {
-          id: 'prod-skate-3',
-          name: 'TCM Slalom Academy Performance Tee',
-          category: 'Skating Products',
-          subcategory: 'T-Shirts',
-          description: 'Breathable, moisture-wicking athletic tee designed for skating maneuvers and daily slalom training.',
-          price: 2200,
-          image_url: 'https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?q=80&w=800&auto=format&fit=crop',
-          image_front: 'https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?q=80&w=800&auto=format&fit=crop',
-          image_rear: 'https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?q=80&w=800&auto=format&fit=crop',
-          image_whole: 'https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?q=80&w=800&auto=format&fit=crop',
-          in_stock: true
-        }
-      ];
-
-      for (const item of seedProducts) {
-        await pool.query(`
-          INSERT INTO products (id, name, category, subcategory, description, price, image_url, image_front, image_rear, image_whole, in_stock, created_at)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
-        `, [item.id, item.name, item.category, item.subcategory, item.description, item.price, item.image_url, item.image_front, item.image_rear, item.image_whole, item.in_stock]);
-      }
-      console.log('✅ Default products seeded successfully!');
-    }
+    // Demo products are no longer auto-seeded. Previously, demo rows were
+    // re-inserted whenever the table was empty, which reappeared on every
+    // Render restart/sleep-wake. Permanently remove any leftover demo rows.
+    const demoIds = ['prod-skate-1', 'prod-skate-2', 'prod-art-1', 'prod-art-2', 'prod-art-3', 'prod-skate-3'];
+    await pool.query('DELETE FROM products WHERE id = ANY($1)', [demoIds]);
   } catch (err) {
     console.error('Error initializing products table:', err);
   }
