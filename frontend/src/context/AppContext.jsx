@@ -50,6 +50,15 @@ export const AppProvider = ({ children }) => {
     reloadContent();
   }, []);
 
+  // Keep the Render free-tier backend warm by pinging every 10 minutes
+  // (Render sleeps after ~15 min of inactivity, which causes slow cold starts).
+  useEffect(() => {
+    const ping = () => api.health.ping();
+    ping();
+    const id = setInterval(ping, 10 * 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
+
   return (
     <AppContext.Provider value={{
       user,

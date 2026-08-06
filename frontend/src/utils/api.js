@@ -182,6 +182,11 @@ const admin = {
     request(`/api/admin/users/${userId}`, { method: 'DELETE' }),
 };
 
+// Health check (silent keep-alive ping — never throws)
+const health = {
+  ping: () => fetch(`${API_BASE}/api/health`).catch(() => {}),
+};
+
 export const api = {
   auth,
   content,
@@ -191,5 +196,6 @@ export const api = {
   commissions,
   products,
   admin,
+  health,
 };
 

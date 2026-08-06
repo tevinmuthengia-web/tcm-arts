@@ -29,6 +29,11 @@ if (!fs.existsSync(uploadsDir)) {
 }
 app.use('/uploads', express.static(uploadsDir));
 
+// Lightweight health-check endpoint (used for keep-alive pings; no DB hit).
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
+
 // ==========================================
 // 1. AUTHENTICATION ENDPOINTS
 // ==========================================
@@ -202,13 +207,15 @@ app.post('/api/products', requireAdmin, upload.any(), async (req, res) => {
     let imageWhole = req.body.imageWhole || '';
 
     if (req.files && req.files.length > 0) {
-      for (const file of req.files) {
-        const uploaded = await uploadToCloudinary(file.buffer);
-        if (file.fieldname === 'imageFront') imageFront = uploaded.secure_url;
-        else if (file.fieldname === 'imageRear') imageRear = uploaded.secure_url;
-        else if (file.fieldname === 'imageWhole') imageWhole = uploaded.secure_url;
-        else if (file.fieldname === 'image') imageUrl = uploaded.secure_url;
-      }
+      // Upload all images to Cloudinary in parallel for faster, consistent uploads.
+      const uploadResults = await Promise.all(req.files.map((file) => uploadToCloudinary(file.buffer)));
+      req.files.forEach((file, i) => {
+        const url = uploadResults[i].secure_url;
+        if (file.fieldname === 'imageFront') imageFront = url;
+        else if (file.fieldname === 'imageRear') imageRear = url;
+        else if (file.fieldname === 'imageWhole') imageWhole = url;
+        else if (file.fieldname === 'image') imageUrl = url;
+      });
     }
 
     if (!imageUrl) imageUrl = imageWhole || imageFront || imageRear || '';
@@ -245,13 +252,15 @@ app.put('/api/products/:id', requireAdmin, upload.any(), async (req, res) => {
     let imageWhole = req.body.imageWhole || null;
 
     if (req.files && req.files.length > 0) {
-      for (const file of req.files) {
-        const uploaded = await uploadToCloudinary(file.buffer);
-        if (file.fieldname === 'imageFront') imageFront = uploaded.secure_url;
-        else if (file.fieldname === 'imageRear') imageRear = uploaded.secure_url;
-        else if (file.fieldname === 'imageWhole') imageWhole = uploaded.secure_url;
-        else if (file.fieldname === 'image') imageUrl = uploaded.secure_url;
-      }
+      // Upload all images to Cloudinary in parallel for faster, consistent uploads.
+      const uploadResults = await Promise.all(req.files.map((file) => uploadToCloudinary(file.buffer)));
+      req.files.forEach((file, i) => {
+        const url = uploadResults[i].secure_url;
+        if (file.fieldname === 'imageFront') imageFront = url;
+        else if (file.fieldname === 'imageRear') imageRear = url;
+        else if (file.fieldname === 'imageWhole') imageWhole = url;
+        else if (file.fieldname === 'image') imageUrl = url;
+      });
     }
 
     const isStockBool = inStock !== undefined && inStock !== null && inStock !== '' ? (inStock === 'true' || inStock === true) : null;
