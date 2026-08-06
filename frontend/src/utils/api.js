@@ -187,6 +187,30 @@ const health = {
   ping: () => fetch(`${API_BASE}/api/health`).catch(() => {}),
 };
 
+// Upload with real-time progress reporting via XMLHttpRequest.
+// Returns a promise that resolves with parsed JSON (like `request`).
+// onProgress receives a 0-100 integer. Network errors reject with
+// "failed to fetch" so callers' retry logic still kicks in.
+const rawUpload = (endpoint, formData, { method = 'POST', onProgress } = {}) => {
+  const token = localStorage.getItem('tcm_token');
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(method, `${API_BASE}${endpoint}`);
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () => {
+      let data;
+      try { data = JSON.parse(xhr.responseText); } catch { data = {}; }
+      if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+      else reject(new Error(data.error || 'Upload failed'));
+    };
+    xhr.onerror = () => reject(new Error('failed to fetch'));
+    xhr.send(formData);
+  });
+};
+
 export const api = {
   auth,
   content,
@@ -197,5 +221,6 @@ export const api = {
   products,
   admin,
   health,
+  rawUpload,
 };
 

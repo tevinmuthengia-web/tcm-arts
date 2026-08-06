@@ -4,41 +4,40 @@ import { api } from '../utils/api';
 import { Edit, Image, Plus, Trash2, Calendar, FileText, CheckCircle2, Shield, User, ShoppingBag } from 'lucide-react';
 
 // Compresses/resizes an image file client-side for faster, more reliable uploads.
-const compressImage = (file, maxSize = 1280, quality = 0.82) => {
+// Uses URL.createObjectURL (direct blob reference) instead of FileReader
+// base64 conversion, which is dramatically faster for large phone photos.
+const compressImage = (file, maxSize = 1200, quality = 0.75) => {
   return new Promise((resolve) => {
     if (!file || !file.type || !file.type.startsWith('image/')) { resolve(file); return; }
-    const reader = new FileReader();
-    reader.onerror = () => resolve(file);
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onerror = () => resolve(file);
-      img.onload = () => {
-        let { width, height } = img;
-        if (width > maxSize || height > maxSize) {
-          if (width >= height) {
-            height = Math.round((height * maxSize) / width);
-            width = maxSize;
-          } else {
-            width = Math.round((width * maxSize) / height);
-            height = maxSize;
-          }
+    const objUrl = URL.createObjectURL(file);
+    const img = new Image();
+    img.onerror = () => { URL.revokeObjectURL(objUrl); resolve(file); };
+    img.onload = () => {
+      URL.revokeObjectURL(objUrl);
+      let { width, height } = img;
+      if (width > maxSize || height > maxSize) {
+        if (width >= height) {
+          height = Math.round((height * maxSize) / width);
+          width = maxSize;
+        } else {
+          width = Math.round((width * maxSize) / height);
+          height = maxSize;
         }
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-        canvas.toBlob((blob) => {
-          if (blob) {
-            resolve(new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' }));
-          } else {
-            resolve(file);
-          }
-        }, 'image/jpeg', quality);
-      };
-      img.src = e.target.result;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob((blob) => {
+        if (blob) {
+          resolve(new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' }));
+        } else {
+          resolve(file);
+        }
+      }, 'image/jpeg', quality);
     };
-    reader.readAsDataURL(file);
+    img.src = objUrl;
   });
 };
 
@@ -67,6 +66,7 @@ export default function AdminPanel() {
   const { siteContent, reloadContent, showToast } = useApp();
   const [activeTab, setActiveTab] = useState('text');
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   
   // 1. Copy State
   const [heroTitle, setHeroTitle] = useState(siteContent?.hero?.title || '');
@@ -441,11 +441,19 @@ export default function AdminPanel() {
     }
 
     setIsUploading(true);
+    setUploadProgress(0);
     try {
-      // Compress images client-side for a much faster, more reliable upload.
-      const frontImg = newProdFrontFile ? await compressImage(newProdFrontFile) : null;
-      const rearImg = newProdRearFile ? await compressImage(newProdRearFile) : null;
-      const wholeImg = newProdWholeFile ? await compressImage(newProdWholeFile) : null;
+      // Warm the backend before the heavy upload. If the Render instance is
+      // asleep (cold start), this cheap request wakes it instead of making the
+      // full multipart body wait 30-60s on a cold connection (which often fails).
+      await api.health.ping();
+
+      // Compress all images in parallel rather than one-by-one.
+      const [frontImg, rearImg, wholeImg] = await Promise.all([
+        newProdFrontFile ? compressImage(newProdFrontFile) : null,
+        newProdRearFile ? compressImage(newProdRearFile) : null,
+        newProdWholeFile ? compressImage(newProdWholeFile) : null,
+      ]);
 
       const buildForm = () => {
         const formData = new FormData();
@@ -464,8 +472,8 @@ export default function AdminPanel() {
         return formData;
       };
 
-      // Retry once on network failure (Render free-tier backend may need to wake up).
-      await withNetworkRetry(() => api.products.add(buildForm()));
+      // Upload with real-time progress reporting; retry once on network failure.
+      await withNetworkRetry(() => api.rawUpload('/api/products', buildForm(), { onProgress: setUploadProgress }));
       showToast("Product added successfully!");
       setNewProdName('');
       setNewProdPrice('');
@@ -507,9 +515,14 @@ export default function AdminPanel() {
       return;
     }
     try {
-      const frontImg = editProdFrontFile ? await compressImage(editProdFrontFile) : null;
-      const rearImg = editProdRearFile ? await compressImage(editProdRearFile) : null;
-      const wholeImg = editProdWholeFile ? await compressImage(editProdWholeFile) : null;
+      // Warm the backend before the heavy upload (same cold-start guard as add).
+      await api.health.ping();
+
+      const [frontImg, rearImg, wholeImg] = await Promise.all([
+        editProdFrontFile ? compressImage(editProdFrontFile) : null,
+        editProdRearFile ? compressImage(editProdRearFile) : null,
+        editProdWholeFile ? compressImage(editProdWholeFile) : null,
+      ]);
 
       const buildForm = () => {
         const formData = new FormData();
@@ -525,7 +538,7 @@ export default function AdminPanel() {
         return formData;
       };
 
-      await withNetworkRetry(() => api.products.edit(id, buildForm()));
+      await withNetworkRetry(() => api.rawUpload(`/api/products/${id}`, buildForm(), { method: 'PUT', onProgress: setUploadProgress }));
       showToast("Product details updated successfully!");
       setEditingProdId(null);
       setEditProdFrontFile(null);
@@ -708,7 +721,16 @@ export default function AdminPanel() {
                     <div><span style={{ fontSize: '0.75rem', color: '#ec4899' }}>Front View</span><input type="file" accept="image/*" onChange={(e) => setNewProdFrontFile(e.target.files[0])} style={{ color: '#fff', fontSize: '0.85rem' }} disabled={isUploading} /></div>
                     <div><span style={{ fontSize: '0.75rem', color: '#ec4899' }}>Rear View</span><input type="file" accept="image/*" onChange={(e) => setNewProdRearFile(e.target.files[0])} style={{ color: '#fff', fontSize: '0.85rem' }} disabled={isUploading} /></div>
                     <div><span style={{ fontSize: '0.75rem', color: '#ec4899' }}>Whole Shoe / Any Part</span><input type="file" accept="image/*" onChange={(e) => setNewProdWholeFile(e.target.files[0])} style={{ color: '#fff', fontSize: '0.85rem' }} disabled={isUploading} /></div>
-                    {isUploading && <div style={{ color: '#ec4899', fontSize: '0.8rem' }}>⏳ Uploading... Please wait</div>}
+                    {isUploading && (
+                      <div style={{ marginTop: '4px' }}>
+                        <div style={{ color: '#ec4899', fontSize: '0.8rem', marginBottom: '6px' }}>
+                          {uploadProgress > 0 ? `⏳ Uploading... ${uploadProgress}%` : '⏳ Compressing images...'}
+                        </div>
+                        <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.08)', borderRadius: '3px', overflow: 'hidden' }}>
+                          <div style={{ width: `${uploadProgress}%`, height: '100%', background: 'linear-gradient(90deg, #ec4899, #6366f1)', borderRadius: '3px', transition: 'width 0.2s ease' }} />
+                        </div>
+                      </div>
+                    )}
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center' }}>- OR paste public image links below -</div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }} className="grid-3">
                       <input type="text" className="form-control" placeholder="Front URL" value={newProdFrontUrl} onChange={(e)=>setNewProdFrontUrl(e.target.value)} disabled={!!newProdFrontFile || isUploading} />
