@@ -9,7 +9,7 @@ const multer = require('multer');
 const { authenticateToken, requireAdmin, JWT_SECRET } = require('./middleware/auth');
 
 // Import Cloudinary configuration
-const { cloudinary, upload, uploadToCloudinary } = require('./config/cloudinary');
+const { cloudinary, upload, uploadProductImages, uploadToCloudinary } = require('./config/cloudinary');
 
 // Import Supabase database pool
 const pool = require('./config/supabase');
@@ -193,7 +193,7 @@ app.get('/api/products', async (req, res) => {
 });
 
 // Add new product (Admin)
-app.post('/api/products', requireAdmin, upload.any(), async (req, res) => {
+app.post('/api/products', requireAdmin, uploadProductImages.any(), async (req, res) => {
   const { name, category, subcategory, description, price, inStock } = req.body;
 
   if (!name || !category || !price) {
@@ -241,7 +241,7 @@ app.post('/api/products', requireAdmin, upload.any(), async (req, res) => {
 });
 
 // Edit product (Admin)
-app.put('/api/products/:id', requireAdmin, upload.any(), async (req, res) => {
+app.put('/api/products/:id', requireAdmin, uploadProductImages.any(), async (req, res) => {
   const { id } = req.params;
   const { name, category, subcategory, description, price, inStock } = req.body;
 
@@ -935,4 +935,23 @@ app.listen(PORT, () => {
   console.log(`📸 Images stored in Cloudinary (persistent!)`);
   console.log(`🗄️ Database: Supabase PostgreSQL (permanent storage!)`);
   console.log(`============================================`);
+
+  // Keep this Render free-tier service warm. Render sleeps web services after
+  // ~15 min of no inbound requests, which triggers a 30-60s cold start on the
+  // next hit — the main reason product uploads felt extremely slow. By having
+  // the server ping its own public /api/health endpoint every 10 minutes
+  // (an inbound request through Render's router), the inactivity timer is
+  // reset and the service stays awake even with zero visitors on the site.
+  const selfUrl = process.env.RENDER_EXTERNAL_URL;
+  if (selfUrl) {
+    const keepAlive = () => {
+      fetch(`${selfUrl}/api/health`)
+        .then((r) => console.log(`[${new Date().toISOString()}] 🔄 Keep-alive ping OK (${r.status})`))
+        .catch((err) => console.warn('Keep-alive ping failed:', err.message));
+    };
+    setInterval(keepAlive, 10 * 60 * 1000);
+    console.log(`🔄 Self keep-alive enabled — pinging ${selfUrl}/api/health every 10 min`);
+  } else {
+    console.log('ℹ️ RENDER_EXTERNAL_URL not set — self keep-alive skipped (local dev).');
+  }
 });

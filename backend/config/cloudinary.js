@@ -11,21 +11,39 @@ cloudinary.config({
 // Memory storage for direct uploads
 const storage = multer.memoryStorage();
 
-const upload = multer({ 
+// Shared image-type filter used by every upload middleware.
+const imageFileFilter = (req, file, cb) => {
+  const allowedTypes = /jpeg|jpg|png|gif|webp/;
+  const extname = allowedTypes.test(file.originalname.toLowerCase());
+  const mimetype = allowedTypes.test(file.mimetype);
+  if (extname && mimetype) {
+    return cb(null, true);
+  }
+  cb(new Error('Only images (jpg, png, gif, webp) are allowed!'));
+};
+
+// Single-image upload (used by the gallery artwork routes).
+const upload = multer({
   storage: storage,
-  limits: { 
+  limits: {
     fileSize: 50 * 1024 * 1024, // 50MB limit
     files: 1
   },
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|gif|webp/;
-    const extname = allowedTypes.test(file.originalname.toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-    if (extname && mimetype) {
-      return cb(null, true);
-    }
-    cb(new Error('Only images (jpg, png, gif, webp) are allowed!'));
-  }
+  fileFilter: imageFileFilter
+});
+
+// Multi-image upload (used by the products routes). Products can carry up
+// to 3 view pictures (front, rear, whole), so the cap must exceed 1 file.
+// The previous shared `files: 1` limit caused multer to abort multi-view
+// uploads mid-stream, which the frontend mistook for a network failure and
+// retried — making product uploads appear extremely slow.
+const uploadProductImages = multer({
+  storage: storage,
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB limit
+    files: 4
+  },
+  fileFilter: imageFileFilter
 });
 
 // Helper function to upload to Cloudinary with better error handling
@@ -55,4 +73,4 @@ const uploadToCloudinary = (fileBuffer, folder = 'tcm-arts') => {
   });
 };
 
-module.exports = { cloudinary, upload, uploadToCloudinary };
+module.exports = { cloudinary, upload, uploadProductImages, uploadToCloudinary };
