@@ -6,11 +6,13 @@ import { Edit, Image, Plus, Trash2, Calendar, FileText, CheckCircle2, Shield, Us
 // Compresses/resizes an image file client-side for faster, more reliable uploads.
 // Uses URL.createObjectURL (direct blob reference) instead of FileReader
 // base64 conversion, which is dramatically faster for large phone photos.
+// NOTE: Uses document.createElement('img') instead of `new Image()` because
+// `Image` is shadowed by the lucide-react icon import at the top of this file.
 const compressImage = (file, maxSize = 1200, quality = 0.75) => {
   return new Promise((resolve) => {
     if (!file || !file.type || !file.type.startsWith('image/')) { resolve(file); return; }
     const objUrl = URL.createObjectURL(file);
-    const img = new Image();
+    const img = document.createElement('img');
     img.onerror = () => { URL.revokeObjectURL(objUrl); resolve(file); };
     img.onload = () => {
       URL.revokeObjectURL(objUrl);
