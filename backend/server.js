@@ -34,6 +34,26 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
+// Signed signature for direct browser→Cloudinary uploads (admin only).
+// Lets product images skip the slow Render backend entirely, so uploads are fast.
+app.get('/api/upload-signature', requireAdmin, (req, res) => {
+  try {
+    const timestamp = Math.round(Date.now() / 1000);
+    const paramsToSign = { timestamp, folder: 'tcm-arts' };
+    const signature = cloudinary.utils.api_sign_request(paramsToSign, process.env.CLOUDINARY_API_SECRET);
+    res.json({
+      signature,
+      timestamp,
+      folder: 'tcm-arts',
+      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+      api_key: process.env.CLOUDINARY_API_KEY
+    });
+  } catch (err) {
+    console.error('Upload signature error:', err);
+    res.status(500).json({ error: 'Failed to generate upload signature' });
+  }
+});
+
 // ==========================================
 // 1. AUTHENTICATION ENDPOINTS
 // ==========================================

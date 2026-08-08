@@ -143,6 +143,8 @@ const commissions = {
 // Products API
 const products = {
   get: () => request('/api/products'),
+  save: (data) => request('/api/products', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id, data) => request(`/api/products/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   add: (formData) => {
     const token = localStorage.getItem('tcm_token');
     return fetch(`${API_BASE}/api/products`, {
@@ -211,6 +213,36 @@ const rawUpload = (endpoint, formData, { method = 'POST', onProgress } = {}) => 
   });
 };
 
+// Direct browser→Cloudinary uploads (signed). Bypasses the slow Render backend
+// for image data so product uploads are fast and reliable.
+const cloudinaryUpload = {
+  sign: () => request('/api/upload-signature'),
+  upload: (file, sig, onProgress) => {
+    return new Promise((resolve, reject) => {
+      const url = `https://api.cloudinary.com/v1_1/${sig.cloud_name}/image/upload`;
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('api_key', sig.api_key);
+      fd.append('timestamp', sig.timestamp);
+      fd.append('signature', sig.signature);
+      fd.append('folder', sig.folder);
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', url);
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable && typeof onProgress === 'function') onProgress(Math.round((e.loaded / e.total) * 100));
+      };
+      xhr.onload = () => {
+        let data;
+        try { data = JSON.parse(xhr.responseText); } catch { data = {}; }
+        if (xhr.status >= 200 && xhr.status < 300 && data.secure_url) resolve(data.secure_url);
+        else reject(new Error((data.error && data.error.message) || 'Image upload failed'));
+      };
+      xhr.onerror = () => reject(new Error('failed to fetch'));
+      xhr.send(fd);
+    });
+  },
+};
+
 export const api = {
   auth,
   content,
@@ -222,5 +254,6 @@ export const api = {
   admin,
   health,
   rawUpload,
+  cloudinaryUpload,
 };
 

@@ -23,11 +23,11 @@ const imageFileFilter = (req, file, cb) => {
 };
 
 // Single-image upload (used by the gallery artwork routes).
-const upload = multer({
+const upload = multer({ 
   storage: storage,
-  limits: {
+  limits: { 
     fileSize: 50 * 1024 * 1024, // 50MB limit
-    files: 1
+    files: 10
   },
   fileFilter: imageFileFilter
 });

@@ -8,7 +8,7 @@ import { Edit, Image, Plus, Trash2, Calendar, FileText, CheckCircle2, Shield, Us
 // base64 conversion, which is dramatically faster for large phone photos.
 // NOTE: Uses document.createElement('img') instead of `new Image()` because
 // `Image` is shadowed by the lucide-react icon import at the top of this file.
-const compressImage = (file, maxSize = 1200, quality = 0.75) => {
+const compressImage = (file, maxSize = 850, quality = 0.68) => {
   return new Promise((resolve) => {
     if (!file || !file.type || !file.type.startsWith('image/')) { resolve(file); return; }
     const objUrl = URL.createObjectURL(file);
@@ -445,37 +445,51 @@ export default function AdminPanel() {
     setIsUploading(true);
     setUploadProgress(0);
     try {
-      // Warm the backend before the heavy upload. If the Render instance is
-      // asleep (cold start), this cheap request wakes it instead of making the
-      // full multipart body wait 30-60s on a cold connection (which often fails).
-      await api.health.ping();
+      // Start warming the backend now (in parallel) so it's awake by the time we save.
+      const warmup = api.health.ping().catch(() => {});
 
-      // Compress all images in parallel rather than one-by-one.
+      // Compress images locally first (small files = fast direct upload).
       const [frontImg, rearImg, wholeImg] = await Promise.all([
         newProdFrontFile ? compressImage(newProdFrontFile) : null,
         newProdRearFile ? compressImage(newProdRearFile) : null,
         newProdWholeFile ? compressImage(newProdWholeFile) : null,
       ]);
 
-      const buildForm = () => {
-        const formData = new FormData();
-        formData.append('name', newProdName);
-        formData.append('category', newProdCategory);
-        formData.append('subcategory', newProdSubcategory);
-        formData.append('price', newProdPrice);
-        formData.append('description', newProdDesc);
-        formData.append('inStock', newProdInStock);
-        if (frontImg) formData.append('imageFront', frontImg);
-        else if (newProdFrontUrl) formData.append('imageFront', newProdFrontUrl);
-        if (rearImg) formData.append('imageRear', rearImg);
-        else if (newProdRearUrl) formData.append('imageRear', newProdRearUrl);
-        if (wholeImg) formData.append('imageWhole', wholeImg);
-        else if (newProdWholeUrl) formData.append('imageWhole', newProdWholeUrl);
-        return formData;
-      };
+      // Upload images DIRECTLY to Cloudinary — bypassing the slow Render backend
+      // for image data (the main cause of slow/failed uploads).
+      const pending = [
+        { key: 'imageFront', file: frontImg },
+        { key: 'imageRear', file: rearImg },
+        { key: 'imageWhole', file: wholeImg },
+      ].filter((x) => x.file);
 
-      // Upload with real-time progress reporting; retry once on network failure.
-      await withNetworkRetry(() => api.rawUpload('/api/products', buildForm(), { onProgress: setUploadProgress }));
+      const urls = {};
+      if (pending.length > 0) {
+        const sig = await api.cloudinaryUpload.sign();
+        const total = pending.length;
+        for (let i = 0; i < pending.length; i++) {
+          const item = pending[i];
+          urls[item.key] = await api.cloudinaryUpload.upload(item.file, sig, (p) => {
+            const base = Math.round((i / total) * 100);
+            setUploadProgress(Math.min(99, base + Math.round(p / total)));
+          });
+        }
+      }
+
+      await warmup;
+      // Send only the small text payload + image URLs to the backend.
+      await api.products.save({
+        name: newProdName,
+        category: newProdCategory,
+        subcategory: newProdSubcategory,
+        price: newProdPrice,
+        description: newProdDesc,
+        inStock: newProdInStock,
+        imageFront: urls.imageFront || newProdFrontUrl || '',
+        imageRear: urls.imageRear || newProdRearUrl || '',
+        imageWhole: urls.imageWhole || newProdWholeUrl || '',
+      });
+      setUploadProgress(100);
       showToast("Product added successfully!");
       setNewProdName('');
       setNewProdPrice('');
@@ -517,8 +531,7 @@ export default function AdminPanel() {
       return;
     }
     try {
-      // Warm the backend before the heavy upload (same cold-start guard as add).
-      await api.health.ping();
+      const warmup = api.health.ping().catch(() => {});
 
       const [frontImg, rearImg, wholeImg] = await Promise.all([
         editProdFrontFile ? compressImage(editProdFrontFile) : null,
@@ -526,21 +539,33 @@ export default function AdminPanel() {
         editProdWholeFile ? compressImage(editProdWholeFile) : null,
       ]);
 
-      const buildForm = () => {
-        const formData = new FormData();
-        formData.append('name', editProdName);
-        formData.append('category', editProdCategory);
-        formData.append('subcategory', editProdSubcategory);
-        formData.append('price', parseFloat(editProdPrice));
-        formData.append('description', editProdDesc);
-        formData.append('inStock', editProdInStock);
-        if (frontImg) formData.append('imageFront', frontImg);
-        if (rearImg) formData.append('imageRear', rearImg);
-        if (wholeImg) formData.append('imageWhole', wholeImg);
-        return formData;
-      };
+      // Upload any replacement images directly to Cloudinary.
+      const pending = [
+        { key: 'imageFront', file: frontImg },
+        { key: 'imageRear', file: rearImg },
+        { key: 'imageWhole', file: wholeImg },
+      ].filter((x) => x.file);
 
-      await withNetworkRetry(() => api.rawUpload(`/api/products/${id}`, buildForm(), { method: 'PUT', onProgress: setUploadProgress }));
+      const urls = {};
+      if (pending.length > 0) {
+        const sig = await api.cloudinaryUpload.sign();
+        for (const item of pending) {
+          urls[item.key] = await api.cloudinaryUpload.upload(item.file, sig, () => {});
+        }
+      }
+
+      await warmup;
+      await api.products.update(id, {
+        name: editProdName,
+        category: editProdCategory,
+        subcategory: editProdSubcategory,
+        price: parseFloat(editProdPrice),
+        description: editProdDesc,
+        inStock: editProdInStock,
+        ...(urls.imageFront ? { imageFront: urls.imageFront } : {}),
+        ...(urls.imageRear ? { imageRear: urls.imageRear } : {}),
+        ...(urls.imageWhole ? { imageWhole: urls.imageWhole } : {}),
+      });
       showToast("Product details updated successfully!");
       setEditingProdId(null);
       setEditProdFrontFile(null);
